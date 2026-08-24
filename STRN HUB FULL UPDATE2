@@ -1,4 +1,4 @@
--- STRN HUB v2 — FINAL (SERVER TAB + WAYPOINT)
+-- STRN HUB v2 — TANPA WAYPOINT
 
 local Players=game:GetService("Players")
 local UserInputService=game:GetService("UserInputService")
@@ -1383,32 +1383,6 @@ serverTitle.TextXAlignment=Enum.TextXAlignment.Left
 serverTitle.ZIndex=115
 serverTitle.Parent=serverPage
 
--- ===== TOMBOL WAYPOINT DI SERVER TAB (PALING ATAS) =====
-local waypointBridge = Instance.new("BindableFunction")
-waypointBridge.Name = "WaypointBridge"
-waypointBridge.Parent = gui
-
-waypointBridge.OnInvoke = function()
-    local success, err = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/WSTRN681/Waypoint-connection/refs/heads/main/Waypoint%20connection"))()
-    end)
-    if not success then
-        warn("Waypoint Manager gagal dimuat: " .. tostring(err))
-    end
-end
-
-local waypointBtn = createButton(serverPage, "📍 Waypoint Manager", 0, 160)
-waypointBtn.Position = UDim2.new(0, 5, 0, 5)
-waypointBtn.ZIndex = 120
-waypointBtn.MouseButton1Click:Connect(function()
-    local existing = PlayerGui:FindFirstChild("WaypointManagerGUI")
-    if existing then
-        existing:Destroy()
-    else
-        gui:FindFirstChild("WaypointBridge"):Invoke()
-    end
-end)
-
 local function createServerInfo(text,y)
     local label=Instance.new("TextLabel")
     label.Size=UDim2.new(1,-10,0,35)
@@ -1487,7 +1461,6 @@ infoText.Text=[[
 
 › Orbit sekarang terlihat di semua player
 › Ride bisa swap langsung tanpa stop
-› Waypoint Manager di Tab Server
 
 📋 FITUR
 
@@ -1506,7 +1479,6 @@ Graphic
 
 Server
 • Info Game • Player Count • FPS • Ping
-• Waypoint Manager (di atas)
 
 💾 Auto Save/Load Config
 ]]
