@@ -1,4 +1,4 @@
--- STRN HUB v2 — TANPA WAYPOINT
+-- STRN HUB v2 — HOP EDITION (FIX IKON & CLOSE LOGIC + WAYPOINT CONNECTOR)
 
 local Players=game:GetService("Players")
 local UserInputService=game:GetService("UserInputService")
@@ -13,14 +13,7 @@ local Camera=workspace.CurrentCamera
 
 local wallHack=false
 local infiniteJump=false
-local nightVision=false
-local fullbright=false
-local fogControl=false
-local fpsBoost=false
 local antiAFK=false
-local brightnessValue=0
-local colorBoostValue=0
-local contrastValue=0
 
 local orbitActive=false
 local orbitTarget=nil
@@ -32,7 +25,6 @@ local orbitRandomY=0
 
 local wallHackConnection
 local jumpConnection
-local nightVisionConnection
 local spectatorConnection
 local fpsConnection
 local rideConnection
@@ -59,33 +51,44 @@ local ON_COLOR=Color3.fromRGB(70,180,255)
 local TROLL_COLOR=Color3.fromRGB(255,70,70)
 local TEXT=Color3.fromRGB(235,235,240)
 local SUBTEXT=Color3.fromRGB(150,150,160)
+local RED=Color3.fromRGB(220,50,50)
+local GREEN=Color3.fromRGB(70,255,70)
+local YELLOW=Color3.fromRGB(255,200,50)
 
 local function getCharacter() return Player.Character or Player.CharacterAdded:Wait() end
 local function getHumanoid(c) c=c or getCharacter() return c:FindFirstChildOfClass("Humanoid") end
 local function getRoot(c) if not c then return nil end return c:FindFirstChild("HumanoidRootPart") end
 
-local CONFIG_KEY="STRN_HUB_CONFIG"
+-- CONFIG SYSTEM USING EXECUTOR FILE I/O
+local CONFIG_FILE = "STRN_HUB_Config.json"
+
 local function saveConfig()
-    local config={wallHack=wallHack,infiniteJump=infiniteJump,nightVision=nightVision,fullbright=fullbright,fogControl=fogControl,fpsBoost=fpsBoost,antiAFK=antiAFK,selectedSpeed=selectedSpeed,brightness=brightnessValue,colorBoost=colorBoostValue,contrast=contrastValue}
-    local json=HttpService:JSONEncode(config)
-    pcall(function() HttpService:SetAsync(CONFIG_KEY,json) end)
+    local config = {
+        wallHack = wallHack,
+        infiniteJump = infiniteJump,
+        antiAFK = antiAFK,
+        selectedSpeed = selectedSpeed
+    }
+    local success, json = pcall(function() return HttpService:JSONEncode(config) end)
+    if success and json and writefile then
+        pcall(function() writefile(CONFIG_FILE, json) end)
+    end
 end
+
 local function loadConfig()
-    local success,json=pcall(function() return HttpService:GetAsync(CONFIG_KEY) end)
-    if success and json then
-        local config=HttpService:JSONDecode(json)
-        wallHack=config.wallHack or false
-        infiniteJump=config.infiniteJump or false
-        nightVision=config.nightVision or false
-        fullbright=config.fullbright or false
-        fogControl=config.fogControl or false
-        fpsBoost=config.fpsBoost or false
-        antiAFK=config.antiAFK or false
-        selectedSpeed=config.selectedSpeed or 1
-        brightnessValue=config.brightness or 0
-        colorBoostValue=config.colorBoost or 0
-        contrastValue=config.contrast or 0
-        return true
+    if isfile and not isfile(CONFIG_FILE) then return false end
+    if readfile then
+        local success, fileData = pcall(function() return readfile(CONFIG_FILE) end)
+        if success and fileData and fileData ~= "" then
+            local decodeSuccess, config = pcall(function() return HttpService:JSONDecode(fileData) end)
+            if decodeSuccess and type(config) == "table" then
+                wallHack = config.wallHack or false
+                infiniteJump = config.infiniteJump or false
+                antiAFK = config.antiAFK or false
+                selectedSpeed = config.selectedSpeed or 1
+                return true
+            end
+        end
     end
     return false
 end
@@ -166,6 +169,36 @@ local closeCorner=Instance.new("UICorner")
 closeCorner.CornerRadius=UDim.new(0,8)
 closeCorner.Parent=closeButton
 
+-- CREATION OF OPEN BUTTON (MOVED UP SO CLOSE BUTTON CAN ACCESS IT DIRECTLY)
+local openButton=Instance.new("TextButton")
+openButton.Name="OpenButton"
+openButton.Size=UDim2.fromOffset(55,55)
+openButton.Position=UDim2.new(0,20,0.5,-27)
+openButton.BackgroundColor3=BG
+openButton.BorderSizePixel=0
+openButton.Text="STRN"
+openButton.TextColor3=TEXT
+openButton.TextSize=13
+openButton.Font=Enum.Font.GothamBold
+openButton.AutoButtonColor=false
+openButton.Visible=false
+openButton.Active=true
+openButton.ZIndex=999999
+openButton.Parent=gui
+local openCorner=Instance.new("UICorner")
+openCorner.CornerRadius=UDim.new(1,0)
+openCorner.Parent=openButton
+local openStroke=Instance.new("UIStroke")
+openStroke.Color=Color3.fromRGB(80,80,90)
+openStroke.Thickness=2
+openStroke.Parent=openButton
+
+-- FIXED CLOSE BUTTON EVENT
+closeButton.MouseButton1Click:Connect(function()
+    frame.Visible=false
+    openButton.Visible=true
+end)
+
 local isDraggingMenu=false
 local dragStartPos=nil
 local dragStartMouse=nil
@@ -213,7 +246,7 @@ local tabWidth=(menuWidth-40)/6
 local hackTab=createTab("Hack",2,tabWidth)
 local playerTab=createTab("Player",4+tabWidth,tabWidth)
 local trollTab=createTab("Troll",6+tabWidth*2,tabWidth)
-local graphicTab=createTab("Graphic",8+tabWidth*3,tabWidth)
+local hopTab=createTab("Hop",8+tabWidth*3,tabWidth)
 local serverTab=createTab("Server",10+tabWidth*4,tabWidth)
 local infoTab=createTab("Info",12+tabWidth*5,tabWidth)
 
@@ -237,12 +270,13 @@ end
 local hackPage=createPage(300)
 local playerPage=createPage(700)
 local trollPage=createPage(420)
-local graphicPage=createPage(510)
-local serverPage=createPage(350)
+local hopPage=createPage(380)
+local serverPage=createPage(400)
 local infoPage=createPage(330)
+
 playerPage.Visible=false
 trollPage.Visible=false
-graphicPage.Visible=false
+hopPage.Visible=false
 serverPage.Visible=false
 infoPage.Visible=false
 
@@ -1184,193 +1218,275 @@ end
 orbitStartButton.MouseButton1Click:Connect(startOrbit)
 orbitStopButton.MouseButton1Click:Connect(stopOrbit)
 
--- GRAPHIC PAGE
-local visualLabel=Instance.new("TextLabel")
-visualLabel.Size=UDim2.new(1,-10,0,25)
-visualLabel.Position=UDim2.fromOffset(5,0)
-visualLabel.BackgroundTransparency=1
-visualLabel.Text="🎨 Visual & Performance"
-visualLabel.TextColor3=SUBTEXT
-visualLabel.TextSize=13
-visualLabel.Font=Enum.Font.Gotham
-visualLabel.TextXAlignment=Enum.TextXAlignment.Left
-visualLabel.ZIndex=115
-visualLabel.Parent=graphicPage
+-- HOP PAGE (SERVERHOP)
+local hopTitle = Instance.new("TextLabel")
+hopTitle.Size = UDim2.new(1, -10, 0, 30)
+hopTitle.Position = UDim2.fromOffset(5, 0)
+hopTitle.BackgroundTransparency = 1
+hopTitle.Text = "🎯 ServerHop"
+hopTitle.TextColor3 = TEXT
+hopTitle.TextSize = 20
+hopTitle.Font = Enum.Font.GothamBold
+hopTitle.TextXAlignment = Enum.TextXAlignment.Left
+hopTitle.ZIndex = 115
+hopTitle.Parent = hopPage
 
-local graphicEffect=Instance.new("ColorCorrectionEffect")
-graphicEffect.Name="STRN_GraphicControl"
-graphicEffect.Enabled=true
-graphicEffect.Brightness=0
-graphicEffect.Contrast=0
-graphicEffect.Saturation=0
-graphicEffect.TintColor=Color3.fromRGB(255,255,255)
-graphicEffect.Parent=Lighting
+local maxPlayerLabel = Instance.new("TextLabel")
+maxPlayerLabel.Size = UDim2.new(1, -10, 0, 25)
+maxPlayerLabel.Position = UDim2.fromOffset(5, 35)
+maxPlayerLabel.BackgroundTransparency = 1
+maxPlayerLabel.Text = "Max Players: " .. game.Players.MaxPlayers
+maxPlayerLabel.TextColor3 = SUBTEXT
+maxPlayerLabel.TextSize = 14
+maxPlayerLabel.Font = Enum.Font.GothamMedium
+maxPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
+maxPlayerLabel.ZIndex = 115
+maxPlayerLabel.Parent = hopPage
 
-local originalLighting={Brightness=Lighting.Brightness,ClockTime=Lighting.ClockTime,ExposureCompensation=Lighting.ExposureCompensation,FogStart=Lighting.FogStart,FogEnd=Lighting.FogEnd,Ambient=Lighting.Ambient,OutdoorAmbient=Lighting.OutdoorAmbient,GlobalShadows=Lighting.GlobalShadows}
+local currentPlayerLabel = Instance.new("TextLabel")
+currentPlayerLabel.Size = UDim2.new(1, -10, 0, 25)
+currentPlayerLabel.Position = UDim2.fromOffset(5, 65)
+currentPlayerLabel.BackgroundTransparency = 1
+currentPlayerLabel.Text = "Current Players: " .. #Players:GetPlayers()
+currentPlayerLabel.TextColor3 = SUBTEXT
+currentPlayerLabel.TextSize = 14
+currentPlayerLabel.Font = Enum.Font.GothamMedium
+currentPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
+currentPlayerLabel.ZIndex = 115
+currentPlayerLabel.Parent = hopPage
 
-local nightEffect=Instance.new("ColorCorrectionEffect")
-nightEffect.Name="STRN_AdaptiveNightVision"
-nightEffect.Enabled=false
-nightEffect.Brightness=0
-nightEffect.Contrast=0
-nightEffect.Saturation=0
-nightEffect.TintColor=Color3.fromRGB(255,255,255)
-nightEffect.Parent=Lighting
-
-local MIN_BRIGHTNESS=0
-local MAX_BRIGHTNESS=0.75
-local MIN_CONTRAST=0
-local MAX_CONTRAST=0.10
-local function updateNightVision()
-    if not nightVision then return end
-    local brightness=math.clamp(Lighting.Brightness,0,5)
-    local exposure=Lighting.ExposureCompensation
-    local darkness=1-math.clamp((brightness+exposure+1)/6,0,1)
-    darkness=math.clamp(darkness,0,1)
-    nightEffect.Brightness=MIN_BRIGHTNESS+((MAX_BRIGHTNESS-MIN_BRIGHTNESS)*darkness)
-    nightEffect.Contrast=MIN_CONTRAST+((MAX_CONTRAST-MIN_CONTRAST)*darkness)
-end
-local function setNightVision(state)
-    nightVision=state
-    if nightVisionConnection then nightVisionConnection:Disconnect() nightVisionConnection=nil end
-    if state then
-        nightEffect.Enabled=true
-        updateNightVision()
-        nightVisionConnection=RunService.RenderStepped:Connect(updateNightVision)
-    else
-        nightEffect.Enabled=false
-        nightEffect.Brightness=0
-        nightEffect.Contrast=0
-    end
-end
-local nightButton=createButton(graphicPage,"🌙 Night Vision     OFF",35)
-nightButton.MouseButton1Click:Connect(function()
-    setNightVision(not nightVision)
-    nightButton.Text=nightVision and "🌙 Night Vision     ON" or "🌙 Night Vision     OFF"
-    nightButton.BackgroundColor3=nightVision and ON_COLOR or BUTTON
-    saveConfig()
+Players.PlayerAdded:Connect(function()
+    currentPlayerLabel.Text = "Current Players: " .. #Players:GetPlayers()
+end)
+Players.PlayerRemoving:Connect(function()
+    currentPlayerLabel.Text = "Current Players: " .. #Players:GetPlayers()
 end)
 
-local fullbrightButton=createButton(graphicPage,"💡 Fullbright       OFF",90)
-local function setFullbright(state)
-    fullbright=state
-    if state then
-        Lighting.Brightness=3
-        Lighting.ClockTime=14
-        Lighting.ExposureCompensation=1
-        Lighting.Ambient=Color3.fromRGB(255,255,255)
-        Lighting.OutdoorAmbient=Color3.fromRGB(255,255,255)
-    else
-        Lighting.Brightness=originalLighting.Brightness
-        Lighting.ClockTime=originalLighting.ClockTime
-        Lighting.ExposureCompensation=originalLighting.ExposureCompensation
-        Lighting.Ambient=originalLighting.Ambient
-        Lighting.OutdoorAmbient=originalLighting.OutdoorAmbient
+local inputLabel = Instance.new("TextLabel")
+inputLabel.Size = UDim2.new(1, -10, 0, 22)
+inputLabel.Position = UDim2.fromOffset(5, 95)
+inputLabel.BackgroundTransparency = 1
+inputLabel.Text = "Hop jika player LEBIH dari:"
+inputLabel.TextColor3 = TEXT
+inputLabel.TextSize = 14
+inputLabel.Font = Enum.Font.GothamMedium
+inputLabel.TextXAlignment = Enum.TextXAlignment.Left
+inputLabel.ZIndex = 115
+inputLabel.Parent = hopPage
+
+local targetInput = Instance.new("TextBox")
+targetInput.Size = UDim2.new(1, -20, 0, 40)
+targetInput.Position = UDim2.fromOffset(10, 120)
+targetInput.BackgroundColor3 = BUTTON
+targetInput.BorderSizePixel = 0
+targetInput.Text = "5"
+targetInput.TextColor3 = TEXT
+targetInput.TextSize = 16
+targetInput.Font = Enum.Font.GothamMedium
+targetInput.ClearTextOnFocus = true
+targetInput.ZIndex = 115
+targetInput.Parent = hopPage
+
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 8)
+inputCorner.Parent = targetInput
+
+targetInput.FocusLost:Connect(function()
+    local num = tonumber(targetInput.Text)
+    if not num then
+        targetInput.Text = "5"
+    elseif num < 0 then
+        targetInput.Text = "0"
+    elseif num > game.Players.MaxPlayers then
+        targetInput.Text = tostring(game.Players.MaxPlayers)
     end
-end
-fullbrightButton.MouseButton1Click:Connect(function()
-    setFullbright(not fullbright)
-    fullbrightButton.Text=fullbright and "💡 Fullbright       ON" or "💡 Fullbright       OFF"
-    fullbrightButton.BackgroundColor3=fullbright and ON_COLOR or BUTTON
-    saveConfig()
 end)
 
-local fogButton=createButton(graphicPage,"🌫️ Fog Control     OFF",145)
-local function setFogControl(state)
-    fogControl=state
-    if state then
-        Lighting.FogStart=0
-        Lighting.FogEnd=100000
-    else
-        Lighting.FogStart=originalLighting.FogStart
-        Lighting.FogEnd=originalLighting.FogEnd
-    end
-end
-fogButton.MouseButton1Click:Connect(function()
-    setFogControl(not fogControl)
-    fogButton.Text=fogControl and "🌫️ Fog Control     ON" or "🌫️ Fog Control     OFF"
-    fogButton.BackgroundColor3=fogControl and ON_COLOR or BUTTON
-    saveConfig()
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -10, 0, 25)
+statusLabel.Position = UDim2.fromOffset(5, 175)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: ✅ Siap"
+statusLabel.TextColor3 = SUBTEXT
+statusLabel.TextSize = 13
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.ZIndex = 115
+statusLabel.Parent = hopPage
+
+local hopBtn = Instance.new("TextButton")
+hopBtn.Size = UDim2.fromOffset((menuWidth - 40) / 2 - 5, 40)
+hopBtn.Position = UDim2.fromOffset(10, 210)
+hopBtn.BackgroundColor3 = ON_COLOR
+hopBtn.BorderSizePixel = 0
+hopBtn.Text = "🚀 Hop Sekali"
+hopBtn.TextColor3 = TEXT
+hopBtn.TextSize = 13
+hopBtn.Font = Enum.Font.GothamBold
+hopBtn.AutoButtonColor = false
+hopBtn.ZIndex = 120
+hopBtn.Parent = hopPage
+
+local hopCorner = Instance.new("UICorner")
+hopCorner.CornerRadius = UDim.new(0, 8)
+hopCorner.Parent = hopBtn
+
+hopBtn.MouseEnter:Connect(function()
+    hopBtn.BackgroundColor3 = Color3.fromRGB(100,200,255)
+end)
+hopBtn.MouseLeave:Connect(function()
+    hopBtn.BackgroundColor3 = ON_COLOR
 end)
 
-local brightnessSlider=createSlider(graphicPage,"☀️ Brightness",200,0,2,0,function(value) brightnessValue=value graphicEffect.Brightness=value saveConfig() end)
-local colorSlider=createSlider(graphicPage,"🎨 Color Boost",265,0,2,0,function(value) colorBoostValue=value graphicEffect.Saturation=value saveConfig() end)
-local contrastSlider=createSlider(graphicPage,"🌓 Contrast",330,0,2,0,function(value) contrastValue=value graphicEffect.Contrast=value saveConfig() end)
+local autoHopBtn = Instance.new("TextButton")
+autoHopBtn.Size = UDim2.fromOffset((menuWidth - 40) / 2 - 5, 40)
+autoHopBtn.Position = UDim2.new(0.5, 5, 0, 210)
+autoHopBtn.BackgroundColor3 = BUTTON
+autoHopBtn.BorderSizePixel = 0
+autoHopBtn.Text = "🔁 Auto: OFF"
+autoHopBtn.TextColor3 = TEXT
+autoHopBtn.TextSize = 13
+autoHopBtn.Font = Enum.Font.GothamBold
+autoHopBtn.AutoButtonColor = false
+autoHopBtn.ZIndex = 120
+autoHopBtn.Parent = hopPage
 
-local fpsBoostButton=createButton(graphicPage,"⚡ FPS Boost       OFF",395)
-local originalParticleStates={}
-local originalEffectsStates={}
-local function setFPSBoost(state)
-    fpsBoost=state
-    if state then
-        for _,obj in ipairs(Lighting:GetDescendants()) do
-            if obj:IsA("PostEffect") then
-                if originalEffectsStates[obj]==nil then originalEffectsStates[obj]=obj.Enabled end
-                if obj~=nightEffect and obj~=graphicEffect then obj.Enabled=false end
+local autoCorner = Instance.new("UICorner")
+autoCorner.CornerRadius = UDim.new(0, 8)
+autoCorner.Parent = autoHopBtn
+
+autoHopBtn.MouseEnter:Connect(function()
+    if autoHopBtn.BackgroundColor3 ~= ON_COLOR then
+        autoHopBtn.BackgroundColor3 = BUTTON_HOVER
+    end
+end)
+autoHopBtn.MouseLeave:Connect(function()
+    if autoHopBtn.BackgroundColor3 ~= ON_COLOR then
+        autoHopBtn.BackgroundColor3 = BUTTON
+    end
+end)
+
+local stopAutoBtn = Instance.new("TextButton")
+stopAutoBtn.Size = UDim2.new(1, -20, 0, 35)
+stopAutoBtn.Position = UDim2.fromOffset(10, 260)
+stopAutoBtn.BackgroundColor3 = RED
+stopAutoBtn.BorderSizePixel = 0
+stopAutoBtn.Text = "⏹️ Stop Auto"
+stopAutoBtn.TextColor3 = TEXT
+stopAutoBtn.TextSize = 13
+stopAutoBtn.Font = Enum.Font.GothamBold
+stopAutoBtn.AutoButtonColor = false
+stopAutoBtn.Visible = false
+stopAutoBtn.ZIndex = 120
+stopAutoBtn.Parent = hopPage
+
+local stopAutoCorner = Instance.new("UICorner")
+stopAutoCorner.CornerRadius = UDim.new(0, 8)
+stopAutoCorner.Parent = stopAutoBtn
+
+stopAutoBtn.MouseEnter:Connect(function()
+    stopAutoBtn.BackgroundColor3 = Color3.fromRGB(255,60,60)
+end)
+stopAutoBtn.MouseLeave:Connect(function()
+    stopAutoBtn.BackgroundColor3 = RED
+end)
+
+local TeleportService = game:GetService("TeleportService")
+local PlaceId = game.PlaceId
+local JobId = game.JobId
+local isAutoHoping = false
+local autoHopRunning = false
+
+local function HopServer()
+    local target = tonumber(targetInput.Text) or 5
+    target = math.clamp(target, 0, game.Players.MaxPlayers)
+    
+    statusLabel.Text = "🔍 Searching server..."
+    statusLabel.TextColor3 = YELLOW
+    hopBtn.Text = "⏳ Searching..."
+    
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+    end)
+    
+    if success and result and result.data then
+        local found = false
+        for _, server in ipairs(result.data) do
+            if server.id ~= JobId and server.playing <= target and server.playing < server.maxPlayers then
+                found = true
+                statusLabel.Text = "✅ Found! (" .. server.playing .. " players)"
+                statusLabel.TextColor3 = GREEN
+                hopBtn.Text = "🚀 Hop Sekali"
+                TeleportService:TeleportToPlaceInstance(PlaceId, server.id, Player)
+                return
             end
         end
-        for _,obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
-                if originalParticleStates[obj]==nil then originalParticleStates[obj]=obj.Enabled end
-                obj.Enabled=false
-            end
+        
+        if not found then
+            statusLabel.Text = "❌ No server found with ≤ " .. target .. " players"
+            statusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+            hopBtn.Text = "🚀 Hop Sekali"
         end
-        Lighting.GlobalShadows=false
     else
-        Lighting.GlobalShadows=originalLighting.GlobalShadows
-        for obj,state in pairs(originalEffectsStates) do if obj and obj.Parent then obj.Enabled=state end end
-        for obj,state in pairs(originalParticleStates) do if obj and obj.Parent then obj.Enabled=state end end
-        table.clear(originalEffectsStates)
-        table.clear(originalParticleStates)
+        statusLabel.Text = "❌ Failed to get server data!"
+        statusLabel.TextColor3 = Color3.fromRGB(255,100,100)
+        hopBtn.Text = "🚀 Hop Sekali"
     end
 end
-fpsBoostButton.MouseButton1Click:Connect(function()
-    setFPSBoost(not fpsBoost)
-    fpsBoostButton.Text=fpsBoost and "⚡ FPS Boost       ON" or "⚡ FPS Boost       OFF"
-    fpsBoostButton.BackgroundColor3=fpsBoost and ON_COLOR or BUTTON
-    saveConfig()
-end)
 
-local resetGraphicButton=createButton(graphicPage,"🔄 Reset Graphic",450)
-local function resetGraphic()
-    fullbright=false
-    fogControl=false
-    fpsBoost=false
-    brightnessValue=0
-    colorBoostValue=0
-    contrastValue=0
-    Lighting.Brightness=originalLighting.Brightness
-    Lighting.ClockTime=originalLighting.ClockTime
-    Lighting.ExposureCompensation=originalLighting.ExposureCompensation
-    Lighting.FogStart=originalLighting.FogStart
-    Lighting.FogEnd=originalLighting.FogEnd
-    Lighting.Ambient=originalLighting.Ambient
-    Lighting.OutdoorAmbient=originalLighting.OutdoorAmbient
-    Lighting.GlobalShadows=originalLighting.GlobalShadows
-    graphicEffect.Brightness=0
-    graphicEffect.Contrast=0
-    graphicEffect.Saturation=0
-    graphicEffect.TintColor=Color3.fromRGB(255,255,255)
-    for obj,state in pairs(originalEffectsStates) do if obj and obj.Parent then obj.Enabled=state end end
-    for obj,state in pairs(originalParticleStates) do if obj and obj.Parent then obj.Enabled=state end end
-    table.clear(originalEffectsStates)
-    table.clear(originalParticleStates)
-    if nightVision then nightEffect.Enabled=true; updateNightVision()
-    else nightEffect.Enabled=false; nightEffect.Brightness=0; nightEffect.Contrast=0 end
-    fullbrightButton.Text="💡 Fullbright       OFF"
-    fullbrightButton.BackgroundColor3=BUTTON
-    fogButton.Text="🌫️ Fog Control     OFF"
-    fogButton.BackgroundColor3=BUTTON
-    fpsBoostButton.Text="⚡ FPS Boost       OFF"
-    fpsBoostButton.BackgroundColor3=BUTTON
-    brightnessSlider.SetValue(0)
-    colorSlider.SetValue(0)
-    contrastSlider.SetValue(0)
-    saveConfig()
+local function startAutoHop()
+    if isAutoHoping then return end
+    isAutoHoping = true
+    autoHopRunning = true
+    autoHopBtn.Text = "🔁 Auto: ON"
+    autoHopBtn.BackgroundColor3 = ON_COLOR
+    stopAutoBtn.Visible = true
+    statusLabel.Text = "🔄 Auto Hop aktif..."
+    statusLabel.TextColor3 = YELLOW
+
+    task.spawn(function()
+        while autoHopRunning do
+            local target = tonumber(targetInput.Text) or 5
+            target = math.clamp(target, 0, game.Players.MaxPlayers)
+            
+            if #Players:GetPlayers() > target then
+                HopServer()
+                task.wait(2)
+            else
+                statusLabel.Text = "🔄 Player count normal (" .. #Players:GetPlayers() .. " ≤ " .. target .. ")"
+                statusLabel.TextColor3 = SUBTEXT
+            end
+            task.wait(3)
+        end
+    end)
 end
-resetGraphicButton.MouseButton1Click:Connect(resetGraphic)
+
+local function stopAutoHop()
+    autoHopRunning = false
+    isAutoHoping = false
+    autoHopBtn.Text = "🔁 Auto: OFF"
+    autoHopBtn.BackgroundColor3 = BUTTON
+    stopAutoBtn.Visible = false
+    statusLabel.Text = "Status: ✅ Siap"
+    statusLabel.TextColor3 = SUBTEXT
+end
+
+hopBtn.MouseButton1Click:Connect(HopServer)
+autoHopBtn.MouseButton1Click:Connect(function()
+    if isAutoHoping then stopAutoHop() else startAutoHop() end
+end)
+stopAutoBtn.MouseButton1Click:Connect(stopAutoHop)
+hopPage.CanvasSize = UDim2.new(0, 0, 0, 380)
 
 -- SERVER PAGE
+local loadWaypointBtn = createButton(serverPage, "📍 Load Waypoint Module", 5)
+loadWaypointBtn.BackgroundColor3 = ON_COLOR
+loadWaypointBtn.MouseButton1Click:Connect(function()
+    task.spawn(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/WSTRN681/Waypoint-connection/refs/heads/main/Waypoint%20connection"))()
+    end)
+end)
+
 local serverTitle=Instance.new("TextLabel")
 serverTitle.Size=UDim2.new(1,-10,0,30)
 serverTitle.Position=UDim2.fromOffset(5,55)
@@ -1404,11 +1520,11 @@ local function createServerInfo(text,y)
     corner.Parent=label
     return label
 end
-local gameNameLabel=createServerInfo("Game: Loading...",110)
-local playerCountLabel=createServerInfo("Players: Loading...",152)
-local fpsLabel=createServerInfo("FPS: Loading...",194)
-local pingLabel=createServerInfo("Ping: Loading...",236)
-local placeIdLabel=createServerInfo("Place ID: "..tostring(game.PlaceId),278)
+local gameNameLabel=createServerInfo("Game: Loading...",95)
+local playerCountLabel=createServerInfo("Players: Loading...",137)
+local fpsLabel=createServerInfo("FPS: Loading...",179)
+local pingLabel=createServerInfo("Ping: Loading...",221)
+local placeIdLabel=createServerInfo("Place ID: "..tostring(game.PlaceId),263)
 
 task.spawn(function()
     local success,info=pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
@@ -1459,8 +1575,11 @@ infoText.BackgroundTransparency=1
 infoText.Text=[[
 ✅ UPDATE TERBARU
 
+› Fixed Close Button & Open Button visibility
 › Orbit sekarang terlihat di semua player
 › Ride bisa swap langsung tanpa stop
+› ServerHop di tab Hop
+› Fixed Config system (writefile/readfile)
 
 📋 FITUR
 
@@ -1473,9 +1592,8 @@ Player
 Troll
 • Orbit (Target + Speed Slider)
 
-Graphic
-• Night Vision • Fullbright • Fog Control
-• Brightness • Color • Contrast • FPS Boost
+Hop
+• ServerHop (cari server sepi)
 
 Server
 • Info Game • Player Count • FPS • Ping
@@ -1494,13 +1612,13 @@ local function showPage(page,tab)
     hackPage.Visible=false
     playerPage.Visible=false
     trollPage.Visible=false
-    graphicPage.Visible=false
+    hopPage.Visible=false
     serverPage.Visible=false
     infoPage.Visible=false
     hackTab.BackgroundColor3=BUTTON
     playerTab.BackgroundColor3=BUTTON
     trollTab.BackgroundColor3=BUTTON
-    graphicTab.BackgroundColor3=BUTTON
+    hopTab.BackgroundColor3=BUTTON
     serverTab.BackgroundColor3=BUTTON
     infoTab.BackgroundColor3=BUTTON
     page.CanvasPosition=Vector2.new(0,0)
@@ -1511,33 +1629,11 @@ end
 hackTab.MouseButton1Click:Connect(function() showPage(hackPage,hackTab) end)
 playerTab.MouseButton1Click:Connect(function() showPage(playerPage,playerTab); refreshPlayerList() end)
 trollTab.MouseButton1Click:Connect(function() showPage(trollPage,trollTab); updateOrbitTargetList() end)
-graphicTab.MouseButton1Click:Connect(function() showPage(graphicPage,graphicTab) end)
+hopTab.MouseButton1Click:Connect(function() showPage(hopPage,hopTab) end)
 serverTab.MouseButton1Click:Connect(function() showPage(serverPage,serverTab) end)
 infoTab.MouseButton1Click:Connect(function() showPage(infoPage,infoTab) end)
 
-local openButton=Instance.new("TextButton")
-openButton.Name="OpenButton"
-openButton.Size=UDim2.fromOffset(60,60)
-openButton.Position=UDim2.new(0,80,0.5,-30)
-openButton.BackgroundColor3=BG
-openButton.BorderSizePixel=0
-openButton.Text="STRN"
-openButton.TextColor3=TEXT
-openButton.TextSize=14
-openButton.Font=Enum.Font.GothamBold
-openButton.AutoButtonColor=false
-openButton.Visible=false
-openButton.Active=true
-openButton.ZIndex=1000
-openButton.Parent=gui
-local openCorner=Instance.new("UICorner")
-openCorner.CornerRadius=UDim.new(1,0)
-openCorner.Parent=openButton
-local openStroke=Instance.new("UIStroke")
-openStroke.Color=Color3.fromRGB(80,80,90)
-openStroke.Thickness=1
-openStroke.Parent=openButton
-
+-- DRAGGING LOGIC FOR OPEN BUTTON
 local dragging=false
 local dragStart=nil
 local startPosition=nil
@@ -1559,8 +1655,11 @@ UserInputService.InputChanged:Connect(function(input)
     openButton.Position=UDim2.new(startPosition.X.Scale,startPosition.X.Offset+delta.X,startPosition.Y.Scale,startPosition.Y.Offset+delta.Y)
 end)
 
-closeButton.MouseButton1Click:Connect(function() frame.Visible=false; openButton.Visible=true end)
-openButton.MouseButton1Click:Connect(function() if moved then moved=false return end frame.Visible=true; openButton.Visible=false end)
+openButton.MouseButton1Click:Connect(function()
+    if moved then moved=false return end
+    frame.Visible=true
+    openButton.Visible=false
+end)
 
 frame.Visible=true
 openButton.Visible=false
@@ -1570,14 +1669,7 @@ setSpeed(selectedSpeed)
 if loaded then
     if wallHack then setWallHack(true); wallHackButton.Text="🧱 Wall Hack        ON"; wallHackButton.BackgroundColor3=ON_COLOR end
     if infiniteJump then setInfiniteJump(true); jumpButton.Text="🦘 Infinite Jump  ON"; jumpButton.BackgroundColor3=ON_COLOR end
-    if nightVision then setNightVision(true); nightButton.Text="🌙 Night Vision     ON"; nightButton.BackgroundColor3=ON_COLOR end
-    if fullbright then setFullbright(true); fullbrightButton.Text="💡 Fullbright       ON"; fullbrightButton.BackgroundColor3=ON_COLOR end
-    if fogControl then setFogControl(true); fogButton.Text="🌫️ Fog Control     ON"; fogButton.BackgroundColor3=ON_COLOR end
-    if fpsBoost then setFPSBoost(true); fpsBoostButton.Text="⚡ FPS Boost       ON"; fpsBoostButton.BackgroundColor3=ON_COLOR end
     if antiAFK then setAntiAFK(true); antiAFKButton.Text="🛌 Anti-AFK        ON"; antiAFKButton.BackgroundColor3=ON_COLOR end
-    brightnessSlider.SetValue(brightnessValue)
-    colorSlider.SetValue(colorBoostValue)
-    contrastSlider.SetValue(contrastValue)
 end
 
 showPage(hackPage,hackTab)
@@ -1603,14 +1695,11 @@ end)
 gui.Destroying:Connect(function()
     if wallHackConnection then wallHackConnection:Disconnect(); wallHackConnection=nil end
     if jumpConnection then jumpConnection:Disconnect(); jumpConnection=nil end
-    if nightVisionConnection then nightVisionConnection:Disconnect(); nightVisionConnection=nil end
     if spectatorConnection then spectatorConnection:Disconnect(); spectatorConnection=nil end
     if rideConnection then rideConnection:Disconnect(); rideConnection=nil end
     if fpsConnection then fpsConnection:Disconnect(); fpsConnection=nil end
     if antiAFKConnection then antiAFKConnection:Disconnect(); antiAFKConnection=nil end
     if orbitConnection then orbitConnection:Disconnect(); orbitConnection=nil end
-    if nightEffect then nightEffect:Destroy() end
-    if graphicEffect then graphicEffect:Destroy() end
     Camera.CameraType=Enum.CameraType.Custom
     local humanoid=getHumanoid()
     if humanoid then Camera.CameraSubject=humanoid end
