@@ -1,4 +1,6 @@
--- STRN HUB v2 — CLEAN EDITION (NO HOP TAB & SMOOTH ANIMATION)
+-- ============================================================
+-- STRN HUB v2 — CLEAN EDITION (DYNAMIC LOAD TO TOGGLE BUTTON)
+-- ============================================================
 
 local Players=game:GetService("Players")
 local UserInputService=game:GetService("UserInputService")
@@ -72,6 +74,17 @@ gui.IgnoreGuiInset=true
 gui.ZIndexBehavior=Enum.ZIndexBehavior.Global
 gui.DisplayOrder=999999
 gui.Parent=PlayerGui
+
+local hiddenTriggerIcon = Instance.new("TextButton")
+hiddenTriggerIcon.Name = "HiddenTrigger"
+hiddenTriggerIcon.Size = UDim2.fromOffset(20, 20)
+hiddenTriggerIcon.Position = UDim2.new(1, -25, 0, 5)
+hiddenTriggerIcon.BackgroundTransparency = 1
+hiddenTriggerIcon.Text = ""
+hiddenTriggerIcon.Active = false
+hiddenTriggerIcon.Selectable = false
+hiddenTriggerIcon.ZIndex = 999999
+hiddenTriggerIcon.Parent = gui
 
 local viewport=Camera.ViewportSize
 local menuWidth=math.clamp(viewport.X*0.82,270,330)
@@ -168,7 +181,6 @@ openStroke.Color=Color3.fromRGB(80,80,90)
 openStroke.Thickness=2
 openStroke.Parent=openButton
 
--- ANIMASI SMOOTH BUKA & TUTUP MENU
 local isAnimating = false
 
 local function openMenuSmooth()
@@ -280,7 +292,7 @@ end
 local hackPage=createPage(340)
 local playerPage=createPage(700)
 local trollPage=createPage(420)
-local serverPage=createPage(400)
+local serverPage=createPage(450)
 local infoPage=createPage(330)
 
 playerPage.Visible=false
@@ -382,123 +394,6 @@ local function createToggleRow(parent,titleText,descText,yPosition,callback)
             end)
         end
     end)
-end
-
-local function createSlider(parent,labelText,y,minValue,maxValue,initialValue,callback)
-    local label=Instance.new("TextLabel")
-    label.Size=UDim2.new(1,-10,0,22)
-    label.Position=UDim2.fromOffset(5,y)
-    label.BackgroundTransparency=1
-    label.TextColor3=TEXT
-    label.TextSize=14
-    label.Font=Enum.Font.GothamMedium
-    label.TextXAlignment=Enum.TextXAlignment.Left
-    label.ZIndex=115
-    label.Parent=parent
-    local sliderFrame=Instance.new("Frame")
-    sliderFrame.Size=UDim2.new(1,-10,0,35)
-    sliderFrame.Position=UDim2.fromOffset(5,y+24)
-    sliderFrame.BackgroundColor3=BUTTON
-    sliderFrame.BorderSizePixel=0
-    sliderFrame.ZIndex=115
-    sliderFrame.Active=true
-    sliderFrame.Parent=parent
-    local corner=Instance.new("UICorner")
-    corner.CornerRadius=UDim.new(0,10)
-    corner.Parent=sliderFrame
-    local sliderBar=Instance.new("Frame")
-    sliderBar.Size=UDim2.new(1,-30,0,5)
-    sliderBar.Position=UDim2.new(0,15,0.5,-2)
-    sliderBar.BackgroundColor3=Color3.fromRGB(90,90,100)
-    sliderBar.BorderSizePixel=0
-    sliderBar.ZIndex=116
-    sliderBar.Parent=sliderFrame
-    local barCorner=Instance.new("UICorner")
-    barCorner.CornerRadius=UDim.new(1,0)
-    barCorner.Parent=sliderBar
-    local fill=Instance.new("Frame")
-    fill.Size=UDim2.new(0,0,1,0)
-    fill.Position=UDim2.fromScale(0,0)
-    fill.BackgroundColor3=ON_COLOR
-    fill.BorderSizePixel=0
-    fill.ZIndex=117
-    fill.Parent=sliderBar
-    local fillCorner=Instance.new("UICorner")
-    fillCorner.CornerRadius=UDim.new(1,0)
-    fillCorner.Parent=fill
-    local sliderKnob=Instance.new("TextButton")
-    sliderKnob.Size=UDim2.fromOffset(18,18)
-    sliderKnob.AnchorPoint=Vector2.new(0.5,0.5)
-    sliderKnob.BackgroundColor3=Color3.fromRGB(255,255,255)
-    sliderKnob.BorderSizePixel=0
-    sliderKnob.Text=""
-    sliderKnob.AutoButtonColor=false
-    sliderKnob.ZIndex=119
-    sliderKnob.Active=true
-    sliderKnob.Parent=sliderFrame
-    local knobCorner=Instance.new("UICorner")
-    knobCorner.CornerRadius=UDim.new(1,0)
-    knobCorner.Parent=sliderKnob
-    local value=initialValue
-    local draggingSlider=false
-    local function updateLabel()
-        label.Text=labelText.." • "..string.format("%.1f",value)
-    end
-    local function updateVisual()
-        local width=sliderBar.AbsoluteSize.X
-        if width<=0 then return end
-        local range=maxValue-minValue
-        if range<=0 then return end
-        local percent=math.clamp((value-minValue)/range,0,1)
-        local x=width*percent
-        sliderKnob.Position=UDim2.new(0,15+x,0.5,0)
-        fill.Size=UDim2.new(0,x,1,0)
-    end
-    local function setValueFromX(x)
-        local width=sliderBar.AbsoluteSize.X
-        if width<=0 then return end
-        x=math.clamp(x,0,width)
-        local percent=x/width
-        value=minValue+(maxValue-minValue)*percent
-        value=math.clamp(value,minValue,maxValue)
-        updateVisual()
-        updateLabel()
-        callback(value)
-    end
-    local function getInputX(input)
-        return input.Position.X-sliderBar.AbsolutePosition.X
-    end
-    local function beginDrag(input)
-        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-            draggingSlider=true
-            setValueFromX(getInputX(input))
-        end
-    end
-    sliderFrame.InputBegan:Connect(beginDrag)
-    sliderKnob.InputBegan:Connect(beginDrag)
-    UserInputService.InputChanged:Connect(function(input)
-        if not draggingSlider then return end
-        if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
-            setValueFromX(getInputX(input))
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-            draggingSlider=false
-        end
-    end)
-    updateLabel()
-    task.wait(0.1)
-    updateVisual()
-    return {
-        GetValue=function() return value end,
-        SetValue=function(newValue)
-            value=math.clamp(newValue,minValue,maxValue)
-            updateVisual()
-            updateLabel()
-            callback(value)
-        end
-    }
 end
 
 -- HACK PAGE
@@ -1179,6 +1074,123 @@ orbitDropdown.MouseButton1Click:Connect(function()
     end
 end)
 
+local function createSlider(parent,labelText,y,minValue,maxValue,initialValue,callback)
+    local label=Instance.new("TextLabel")
+    label.Size=UDim2.new(1,-10,0,22)
+    label.Position=UDim2.fromOffset(5,y)
+    label.BackgroundTransparency=1
+    label.TextColor3=TEXT
+    label.TextSize=14
+    label.Font=Enum.Font.GothamMedium
+    label.TextXAlignment=Enum.TextXAlignment.Left
+    label.ZIndex=115
+    label.Parent=parent
+    local sliderFrame=Instance.new("Frame")
+    sliderFrame.Size=UDim2.new(1,-10,0,35)
+    sliderFrame.Position=UDim2.fromOffset(5,y+24)
+    sliderFrame.BackgroundColor3=BUTTON
+    sliderFrame.BorderSizePixel=0
+    sliderFrame.ZIndex=115
+    sliderFrame.Active=true
+    sliderFrame.Parent=parent
+    local corner=Instance.new("UICorner")
+    corner.CornerRadius=UDim.new(0,10)
+    corner.Parent=sliderFrame
+    local sliderBar=Instance.new("Frame")
+    sliderBar.Size=UDim2.new(1,-30,0,5)
+    sliderBar.Position=UDim2.new(0,15,0.5,-2)
+    sliderBar.BackgroundColor3=Color3.fromRGB(90,90,100)
+    sliderBar.BorderSizePixel=0
+    sliderBar.ZIndex=116
+    sliderBar.Parent=sliderFrame
+    local barCorner=Instance.new("UICorner")
+    barCorner.CornerRadius=UDim.new(1,0)
+    barCorner.Parent=sliderBar
+    local fill=Instance.new("Frame")
+    fill.Size=UDim2.new(0,0,1,0)
+    fill.Position=UDim2.fromScale(0,0)
+    fill.BackgroundColor3=ON_COLOR
+    fill.BorderSizePixel=0
+    fill.ZIndex=117
+    fill.Parent=sliderBar
+    local fillCorner=Instance.new("UICorner")
+    fillCorner.CornerRadius=UDim.new(1,0)
+    fillCorner.Parent=fill
+    local sliderKnob=Instance.new("TextButton")
+    sliderKnob.Size=UDim2.fromOffset(18,18)
+    sliderKnob.AnchorPoint=Vector2.new(0.5,0.5)
+    sliderKnob.BackgroundColor3=Color3.fromRGB(255,255,255)
+    sliderKnob.BorderSizePixel=0
+    sliderKnob.Text=""
+    sliderKnob.AutoButtonColor=false
+    sliderKnob.ZIndex=119
+    sliderKnob.Active=true
+    sliderKnob.Parent=sliderFrame
+    local knobCorner=Instance.new("UICorner")
+    knobCorner.CornerRadius=UDim.new(1,0)
+    knobCorner.Parent=sliderKnob
+    local value=initialValue
+    local draggingSlider=false
+    local function updateLabel()
+        label.Text=labelText.." • "..string.format("%.1f",value)
+    end
+    local function updateVisual()
+        local width=sliderBar.AbsoluteSize.X
+        if width<=0 then return end
+        local range=maxValue-minValue
+        if range<=0 then return end
+        local percent=math.clamp((value-minValue)/range,0,1)
+        local x=width*percent
+        sliderKnob.Position=UDim2.new(0,15+x,0.5,0)
+        fill.Size=UDim2.new(0,x,1,0)
+    end
+    local function setValueFromX(x)
+        local width=sliderBar.AbsoluteSize.X
+        if width<=0 then return end
+        x=math.clamp(x,0,width)
+        local percent=x/width
+        value=minValue+(maxValue-minValue)*percent
+        value=math.clamp(value,minValue,maxValue)
+        updateVisual()
+        updateLabel()
+        callback(value)
+    end
+    local function getInputX(input)
+        return input.Position.X-sliderBar.AbsolutePosition.X
+    end
+    local function beginDrag(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+            draggingSlider=true
+            setValueFromX(getInputX(input))
+        end
+    end
+    sliderFrame.InputBegan:Connect(beginDrag)
+    sliderKnob.InputBegan:Connect(beginDrag)
+    UserInputService.InputChanged:Connect(function(input)
+        if not draggingSlider then return end
+        if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
+            setValueFromX(getInputX(input))
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+            draggingSlider=false
+        end
+    end)
+    updateLabel()
+    task.wait(0.1)
+    updateVisual()
+    return {
+        GetValue=function() return value end,
+        SetValue=function(newValue)
+            value=math.clamp(newValue,minValue,maxValue)
+            updateVisual()
+            updateLabel()
+            callback(value)
+        end
+    }
+end
+
 local orbitSpeedSlider=createSlider(trollPage,"Orbit Speed",170,0.5,15,2,function(value) orbitSpeed=value end)
 
 local orbitStartButton=createButton(trollPage,"🌀 Start Orbit",230)
@@ -1293,15 +1305,31 @@ orbitStopButton.MouseButton1Click:Connect(stopOrbit)
 -- SERVER PAGE
 local loadWaypointBtn = createButton(serverPage, "📍 Load Waypoint Module", 5)
 loadWaypointBtn.BackgroundColor3 = ON_COLOR
+
+local bpToggleActive = false
+local toggleBPBtn = createButton(serverPage, "📍 Toggle STRN BP Menu", 55)
+toggleBPBtn.BackgroundColor3 = BUTTON
+
 loadWaypointBtn.MouseButton1Click:Connect(function()
     task.spawn(function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/WSTRN681/Waypoint-connection/refs/heads/main/Waypoint%20connection"))()
     end)
+    bpToggleActive = true
+    loadWaypointBtn:Destroy()
+    toggleBPBtn.BackgroundColor3 = CATEGORY_SELECTED
+end)
+
+toggleBPBtn.MouseButton1Click:Connect(function()
+    if bpToggleActive then
+        if getgenv().ToggleSTRNBypass then
+            getgenv().ToggleSTRNBypass()
+        end
+    end
 end)
 
 local serverTitle=Instance.new("TextLabel")
 serverTitle.Size=UDim2.new(1,-10,0,30)
-serverTitle.Position=UDim2.fromOffset(5,55)
+serverTitle.Position=UDim2.fromOffset(5,105)
 serverTitle.BackgroundTransparency=1
 serverTitle.Text="🖥️ Server Information"
 serverTitle.TextColor3=TEXT
@@ -1332,11 +1360,11 @@ local function createServerInfo(text,y)
     corner.Parent=label
     return label
 end
-local gameNameLabel=createServerInfo("Game: Loading...",95)
-local playerCountLabel=createServerInfo("Players: Loading...",137)
-local fpsLabel=createServerInfo("FPS: Loading...",179)
-local pingLabel=createServerInfo("Ping: Loading...",221)
-local placeIdLabel=createServerInfo("Place ID: "..tostring(game.PlaceId),263)
+local gameNameLabel=createServerInfo("Game: Loading...",145)
+local playerCountLabel=createServerInfo("Players: Loading...",187)
+local fpsLabel=createServerInfo("FPS: Loading...",229)
+local pingLabel=createServerInfo("Ping: Loading...",271)
+local placeIdLabel=createServerInfo("Place ID: "..tostring(game.PlaceId),313)
 
 task.spawn(function()
     local success,info=pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
