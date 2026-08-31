@@ -1,4 +1,4 @@
--- STRN HUB v2 — HOP EDITION (FIX IKON & CLOSE LOGIC + WAYPOINT CONNECTOR)
+-- STRN HUB v2 — CLEAN EDITION (NO HOP TAB & SMOOTH ANIMATION)
 
 local Players=game:GetService("Players")
 local UserInputService=game:GetService("UserInputService")
@@ -7,6 +7,8 @@ local Lighting=game:GetService("Lighting")
 local MarketplaceService=game:GetService("MarketplaceService")
 local Stats=game:GetService("Stats")
 local HttpService=game:GetService("HttpService")
+local TweenService=game:GetService("TweenService")
+
 local Player=Players.LocalPlayer
 local PlayerGui=Player:WaitForChild("PlayerGui")
 local Camera=workspace.CurrentCamera
@@ -42,6 +44,7 @@ local RIDE_HEIGHT=4
 local RIDE_OFFSET=Vector3.new(0,RIDE_HEIGHT,0)
 
 local BG=Color3.fromRGB(20,20,25)
+local CARD_BG=Color3.fromRGB(30,30,38)
 local BUTTON=Color3.fromRGB(35,35,43)
 local BUTTON_HOVER=Color3.fromRGB(50,50,60)
 local CATEGORY_SELECTED=Color3.fromRGB(35,125,255)
@@ -59,40 +62,6 @@ local function getCharacter() return Player.Character or Player.CharacterAdded:W
 local function getHumanoid(c) c=c or getCharacter() return c:FindFirstChildOfClass("Humanoid") end
 local function getRoot(c) if not c then return nil end return c:FindFirstChild("HumanoidRootPart") end
 
--- CONFIG SYSTEM USING EXECUTOR FILE I/O
-local CONFIG_FILE = "STRN_HUB_Config.json"
-
-local function saveConfig()
-    local config = {
-        wallHack = wallHack,
-        infiniteJump = infiniteJump,
-        antiAFK = antiAFK,
-        selectedSpeed = selectedSpeed
-    }
-    local success, json = pcall(function() return HttpService:JSONEncode(config) end)
-    if success and json and writefile then
-        pcall(function() writefile(CONFIG_FILE, json) end)
-    end
-end
-
-local function loadConfig()
-    if isfile and not isfile(CONFIG_FILE) then return false end
-    if readfile then
-        local success, fileData = pcall(function() return readfile(CONFIG_FILE) end)
-        if success and fileData and fileData ~= "" then
-            local decodeSuccess, config = pcall(function() return HttpService:JSONDecode(fileData) end)
-            if decodeSuccess and type(config) == "table" then
-                wallHack = config.wallHack or false
-                infiniteJump = config.infiniteJump or false
-                antiAFK = config.antiAFK or false
-                selectedSpeed = config.selectedSpeed or 1
-                return true
-            end
-        end
-    end
-    return false
-end
-
 local oldGui=PlayerGui:FindFirstChild("STRN HUB")
 if oldGui then oldGui:Destroy() end
 
@@ -108,21 +77,28 @@ local viewport=Camera.ViewportSize
 local menuWidth=math.clamp(viewport.X*0.82,270,330)
 local menuHeight=math.clamp(viewport.Y*0.62,360,430)
 
+local normalPos=UDim2.new(0,75,0.5,-menuHeight/2)
+local normalSize=UDim2.fromOffset(menuWidth,menuHeight)
+local hiddenSize=UDim2.fromOffset(menuWidth*0.8,menuHeight*0.8)
+
 local frame=Instance.new("Frame")
 frame.Name="Main"
-frame.Size=UDim2.fromOffset(menuWidth,menuHeight)
-frame.Position=UDim2.new(0,75,0.5,-menuHeight/2)
+frame.Size=hiddenSize
+frame.Position=normalPos
 frame.BackgroundColor3=BG
 frame.BorderSizePixel=0
+frame.BackgroundTransparency=1
 frame.Active=true
 frame.ZIndex=100
 frame.Parent=gui
+
 local frameCorner=Instance.new("UICorner")
 frameCorner.CornerRadius=UDim.new(0,15)
 frameCorner.Parent=frame
 local frameStroke=Instance.new("UIStroke")
 frameStroke.Color=Color3.fromRGB(80,80,90)
 frameStroke.Thickness=1
+frameStroke.Transparency=1
 frameStroke.Parent=frame
 
 local title=Instance.new("TextLabel")
@@ -169,7 +145,6 @@ local closeCorner=Instance.new("UICorner")
 closeCorner.CornerRadius=UDim.new(0,8)
 closeCorner.Parent=closeButton
 
--- CREATION OF OPEN BUTTON (MOVED UP SO CLOSE BUTTON CAN ACCESS IT DIRECTLY)
 local openButton=Instance.new("TextButton")
 openButton.Name="OpenButton"
 openButton.Size=UDim2.fromOffset(55,55)
@@ -193,11 +168,47 @@ openStroke.Color=Color3.fromRGB(80,80,90)
 openStroke.Thickness=2
 openStroke.Parent=openButton
 
--- FIXED CLOSE BUTTON EVENT
-closeButton.MouseButton1Click:Connect(function()
-    frame.Visible=false
-    openButton.Visible=true
-end)
+-- ANIMASI SMOOTH BUKA & TUTUP MENU
+local isAnimating = false
+
+local function openMenuSmooth()
+    if isAnimating then return end
+    isAnimating = true
+    openButton.Visible = false
+    frame.Size = hiddenSize
+    frame.BackgroundTransparency = 1
+    frameStroke.Transparency = 1
+    frame.Visible = true
+
+    local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    local tweenSize = TweenService:Create(frame, tweenInfo, {Size = normalSize, BackgroundTransparency = 0})
+    local tweenStroke = TweenService:Create(frameStroke, tweenInfo, {Transparency = 0})
+
+    tweenSize:Play()
+    tweenStroke:Play()
+    tweenSize.Completed:Connect(function()
+        isAnimating = false
+    end)
+end
+
+local function closeMenuSmooth()
+    if isAnimating then return end
+    isAnimating = true
+
+    local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+    local tweenSize = TweenService:Create(frame, tweenInfo, {Size = hiddenSize, BackgroundTransparency = 1})
+    local tweenStroke = TweenService:Create(frameStroke, tweenInfo, {Transparency = 1})
+
+    tweenSize:Play()
+    tweenStroke:Play()
+    tweenSize.Completed:Connect(function()
+        frame.Visible = false
+        openButton.Visible = true
+        isAnimating = false
+    end)
+end
+
+closeButton.MouseButton1Click:Connect(closeMenuSmooth)
 
 local isDraggingMenu=false
 local dragStartPos=nil
@@ -242,13 +253,12 @@ local function createTab(text,x,width)
     return button
 end
 
-local tabWidth=(menuWidth-40)/6
+local tabWidth=(menuWidth-35)/5
 local hackTab=createTab("Hack",2,tabWidth)
 local playerTab=createTab("Player",4+tabWidth,tabWidth)
 local trollTab=createTab("Troll",6+tabWidth*2,tabWidth)
-local hopTab=createTab("Hop",8+tabWidth*3,tabWidth)
-local serverTab=createTab("Server",10+tabWidth*4,tabWidth)
-local infoTab=createTab("Info",12+tabWidth*5,tabWidth)
+local serverTab=createTab("Server",8+tabWidth*3,tabWidth)
+local infoTab=createTab("Info",10+tabWidth*4,tabWidth)
 
 local function createPage(canvasHeight)
     local page=Instance.new("ScrollingFrame")
@@ -267,16 +277,14 @@ local function createPage(canvasHeight)
     return page
 end
 
-local hackPage=createPage(300)
+local hackPage=createPage(340)
 local playerPage=createPage(700)
 local trollPage=createPage(420)
-local hopPage=createPage(380)
 local serverPage=createPage(400)
 local infoPage=createPage(330)
 
 playerPage.Visible=false
 trollPage.Visible=false
-hopPage.Visible=false
 serverPage.Visible=false
 infoPage.Visible=false
 
@@ -300,6 +308,80 @@ local function createButton(parent,text,y,width)
     button.MouseEnter:Connect(function() if button.BackgroundColor3==BUTTON then button.BackgroundColor3=BUTTON_HOVER end end)
     button.MouseLeave:Connect(function() if button.BackgroundColor3==BUTTON_HOVER then button.BackgroundColor3=BUTTON end end)
     return button
+end
+
+local function createToggleRow(parent,titleText,descText,yPosition,callback)
+    local card=Instance.new("Frame")
+    card.Size=UDim2.new(1,-10,0,52)
+    card.Position=UDim2.fromOffset(5,yPosition)
+    card.BackgroundColor3=CARD_BG
+    card.BorderSizePixel=0
+    card.ZIndex=115
+    card.Parent=parent
+
+    local cardCorner=Instance.new("UICorner")
+    cardCorner.CornerRadius=UDim.new(0,10)
+    cardCorner.Parent=card
+
+    local titleLbl=Instance.new("TextLabel")
+    titleLbl.Size=UDim2.new(1,-75,0,22)
+    titleLbl.Position=UDim2.fromOffset(12,6)
+    titleLbl.BackgroundTransparency=1
+    titleLbl.Text=titleText
+    titleLbl.TextColor3=TEXT
+    titleLbl.TextSize=13
+    titleLbl.Font=Enum.Font.GothamBold
+    titleLbl.TextXAlignment=Enum.TextXAlignment.Left
+    titleLbl.ZIndex=116
+    titleLbl.Parent=card
+
+    local descLbl=Instance.new("TextLabel")
+    descLbl.Size=UDim2.new(1,-75,0,16)
+    descLbl.Position=UDim2.fromOffset(12,28)
+    descLbl.BackgroundTransparency=1
+    descLbl.Text=descText
+    descLbl.TextColor3=SUBTEXT
+    descLbl.TextSize=10
+    descLbl.Font=Enum.Font.GothamMedium
+    descLbl.TextXAlignment=Enum.TextXAlignment.Left
+    descLbl.ZIndex=116
+    descLbl.Parent=card
+
+    local switchBtn=Instance.new("TextButton")
+    switchBtn.Size=UDim2.fromOffset(55,28)
+    switchBtn.Position=UDim2.new(1,-63,0.5,-14)
+    switchBtn.BackgroundColor3=BUTTON
+    switchBtn.BorderSizePixel=0
+    switchBtn.Text="OFF"
+    switchBtn.TextColor3=RED
+    switchBtn.TextSize=10
+    switchBtn.Font=Enum.Font.GothamBold
+    switchBtn.ZIndex=117
+    switchBtn.Parent=card
+
+    local switchCorner=Instance.new("UICorner")
+    switchCorner.CornerRadius=UDim.new(0,14)
+    switchCorner.Parent=switchBtn
+
+    local state=false
+
+    switchBtn.MouseButton1Click:Connect(function()
+        state=not state
+        if state then
+            switchBtn.Text="ON"
+            switchBtn.TextColor3=GREEN
+            switchBtn.BackgroundColor3=ON_COLOR
+        else
+            switchBtn.Text="OFF"
+            switchBtn.TextColor3=RED
+            switchBtn.BackgroundColor3=BUTTON
+        end
+        if callback then
+            task.spawn(function()
+                callback(state)
+            end)
+        end
+    end)
 end
 
 local function createSlider(parent,labelText,y,minValue,maxValue,initialValue,callback)
@@ -432,7 +514,6 @@ movementLabel.TextXAlignment=Enum.TextXAlignment.Left
 movementLabel.ZIndex=115
 movementLabel.Parent=hackPage
 
-local wallHackButton=createButton(hackPage,"🧱 Wall Hack        OFF",30)
 local function setWallHack(state)
     wallHack=state
     if wallHackConnection then wallHackConnection:Disconnect() wallHackConnection=nil end
@@ -447,16 +528,14 @@ local function setWallHack(state)
         for _,part in ipairs(currentCharacter:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide=false end end
     end)
 end
-wallHackButton.MouseButton1Click:Connect(function()
-    setWallHack(not wallHack)
-    wallHackButton.Text=wallHack and "🧱 Wall Hack        ON" or "🧱 Wall Hack        OFF"
-    wallHackButton.BackgroundColor3=wallHack and ON_COLOR or BUTTON
-    saveConfig()
+
+createToggleRow(hackPage, "🧱 Wall Hack", "Menembus tembok dan objek", 28, function(isOn)
+    setWallHack(isOn)
 end)
 
 local speedLabel=Instance.new("TextLabel")
 speedLabel.Size=UDim2.new(1,-10,0,25)
-speedLabel.Position=UDim2.fromOffset(5,85)
+speedLabel.Position=UDim2.fromOffset(5,88)
 speedLabel.BackgroundTransparency=1
 speedLabel.Text="💨 Speed • Normal • 0%"
 speedLabel.TextColor3=TEXT
@@ -467,7 +546,7 @@ speedLabel.ZIndex=115
 speedLabel.Parent=hackPage
 local slider=Instance.new("Frame")
 slider.Size=UDim2.new(1,-10,0,35)
-slider.Position=UDim2.fromOffset(5,112)
+slider.Position=UDim2.fromOffset(5,115)
 slider.BackgroundColor3=BUTTON
 slider.BorderSizePixel=0
 slider.ZIndex=115
@@ -509,7 +588,6 @@ local function setSpeed(index)
         knob.Position=UDim2.new(0,15+x,0.5,0)
     end
     speedLabel.Text=data.percent==0 and "💨 Speed • Normal • 0%" or ("💨 Speed • "..data.percent.."%")
-    saveConfig()
 end
 local function selectSpeed(input)
     local width=bar.AbsoluteSize.X
@@ -532,7 +610,6 @@ knob.InputBegan:Connect(function(input)
     if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then selectSpeed(input) end
 end)
 
-local jumpButton=createButton(hackPage,"🦘 Infinite Jump  OFF",165)
 local function setInfiniteJump(state)
     infiniteJump=state
     if jumpConnection then jumpConnection:Disconnect() jumpConnection=nil end
@@ -543,14 +620,11 @@ local function setInfiniteJump(state)
         end)
     end
 end
-jumpButton.MouseButton1Click:Connect(function()
-    setInfiniteJump(not infiniteJump)
-    jumpButton.Text=infiniteJump and "🦘 Infinite Jump  ON" or "🦘 Infinite Jump  OFF"
-    jumpButton.BackgroundColor3=infiniteJump and ON_COLOR or BUTTON
-    saveConfig()
+
+createToggleRow(hackPage, "🦘 Infinite Jump", "Lompat tanpa batas di udara", 158, function(isOn)
+    setInfiniteJump(isOn)
 end)
 
-local antiAFKButton=createButton(hackPage,"🛌 Anti-AFK        OFF",220)
 local function setAntiAFK(state)
     antiAFK=state
     if antiAFKConnection then antiAFKConnection:Disconnect() antiAFKConnection=nil end
@@ -565,11 +639,9 @@ local function setAntiAFK(state)
         end)
     end
 end
-antiAFKButton.MouseButton1Click:Connect(function()
-    setAntiAFK(not antiAFK)
-    antiAFKButton.Text=antiAFK and "🛌 Anti-AFK        ON" or "🛌 Anti-AFK        OFF"
-    antiAFKButton.BackgroundColor3=antiAFK and ON_COLOR or BUTTON
-    saveConfig()
+
+createToggleRow(hackPage, "Bedtime Anti-AFK", "Mencegah terputus dari server", 218, function(isOn)
+    setAntiAFK(isOn)
 end)
 
 -- PLAYER PAGE
@@ -1218,266 +1290,6 @@ end
 orbitStartButton.MouseButton1Click:Connect(startOrbit)
 orbitStopButton.MouseButton1Click:Connect(stopOrbit)
 
--- HOP PAGE (SERVERHOP)
-local hopTitle = Instance.new("TextLabel")
-hopTitle.Size = UDim2.new(1, -10, 0, 30)
-hopTitle.Position = UDim2.fromOffset(5, 0)
-hopTitle.BackgroundTransparency = 1
-hopTitle.Text = "🎯 ServerHop"
-hopTitle.TextColor3 = TEXT
-hopTitle.TextSize = 20
-hopTitle.Font = Enum.Font.GothamBold
-hopTitle.TextXAlignment = Enum.TextXAlignment.Left
-hopTitle.ZIndex = 115
-hopTitle.Parent = hopPage
-
-local maxPlayerLabel = Instance.new("TextLabel")
-maxPlayerLabel.Size = UDim2.new(1, -10, 0, 25)
-maxPlayerLabel.Position = UDim2.fromOffset(5, 35)
-maxPlayerLabel.BackgroundTransparency = 1
-maxPlayerLabel.Text = "Max Players: " .. game.Players.MaxPlayers
-maxPlayerLabel.TextColor3 = SUBTEXT
-maxPlayerLabel.TextSize = 14
-maxPlayerLabel.Font = Enum.Font.GothamMedium
-maxPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-maxPlayerLabel.ZIndex = 115
-maxPlayerLabel.Parent = hopPage
-
-local currentPlayerLabel = Instance.new("TextLabel")
-currentPlayerLabel.Size = UDim2.new(1, -10, 0, 25)
-currentPlayerLabel.Position = UDim2.fromOffset(5, 65)
-currentPlayerLabel.BackgroundTransparency = 1
-currentPlayerLabel.Text = "Current Players: " .. #Players:GetPlayers()
-currentPlayerLabel.TextColor3 = SUBTEXT
-currentPlayerLabel.TextSize = 14
-currentPlayerLabel.Font = Enum.Font.GothamMedium
-currentPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-currentPlayerLabel.ZIndex = 115
-currentPlayerLabel.Parent = hopPage
-
-Players.PlayerAdded:Connect(function()
-    currentPlayerLabel.Text = "Current Players: " .. #Players:GetPlayers()
-end)
-Players.PlayerRemoving:Connect(function()
-    currentPlayerLabel.Text = "Current Players: " .. #Players:GetPlayers()
-end)
-
-local inputLabel = Instance.new("TextLabel")
-inputLabel.Size = UDim2.new(1, -10, 0, 22)
-inputLabel.Position = UDim2.fromOffset(5, 95)
-inputLabel.BackgroundTransparency = 1
-inputLabel.Text = "Hop jika player LEBIH dari:"
-inputLabel.TextColor3 = TEXT
-inputLabel.TextSize = 14
-inputLabel.Font = Enum.Font.GothamMedium
-inputLabel.TextXAlignment = Enum.TextXAlignment.Left
-inputLabel.ZIndex = 115
-inputLabel.Parent = hopPage
-
-local targetInput = Instance.new("TextBox")
-targetInput.Size = UDim2.new(1, -20, 0, 40)
-targetInput.Position = UDim2.fromOffset(10, 120)
-targetInput.BackgroundColor3 = BUTTON
-targetInput.BorderSizePixel = 0
-targetInput.Text = "5"
-targetInput.TextColor3 = TEXT
-targetInput.TextSize = 16
-targetInput.Font = Enum.Font.GothamMedium
-targetInput.ClearTextOnFocus = true
-targetInput.ZIndex = 115
-targetInput.Parent = hopPage
-
-local inputCorner = Instance.new("UICorner")
-inputCorner.CornerRadius = UDim.new(0, 8)
-inputCorner.Parent = targetInput
-
-targetInput.FocusLost:Connect(function()
-    local num = tonumber(targetInput.Text)
-    if not num then
-        targetInput.Text = "5"
-    elseif num < 0 then
-        targetInput.Text = "0"
-    elseif num > game.Players.MaxPlayers then
-        targetInput.Text = tostring(game.Players.MaxPlayers)
-    end
-end)
-
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -10, 0, 25)
-statusLabel.Position = UDim2.fromOffset(5, 175)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: ✅ Siap"
-statusLabel.TextColor3 = SUBTEXT
-statusLabel.TextSize = 13
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.ZIndex = 115
-statusLabel.Parent = hopPage
-
-local hopBtn = Instance.new("TextButton")
-hopBtn.Size = UDim2.fromOffset((menuWidth - 40) / 2 - 5, 40)
-hopBtn.Position = UDim2.fromOffset(10, 210)
-hopBtn.BackgroundColor3 = ON_COLOR
-hopBtn.BorderSizePixel = 0
-hopBtn.Text = "🚀 Hop Sekali"
-hopBtn.TextColor3 = TEXT
-hopBtn.TextSize = 13
-hopBtn.Font = Enum.Font.GothamBold
-hopBtn.AutoButtonColor = false
-hopBtn.ZIndex = 120
-hopBtn.Parent = hopPage
-
-local hopCorner = Instance.new("UICorner")
-hopCorner.CornerRadius = UDim.new(0, 8)
-hopCorner.Parent = hopBtn
-
-hopBtn.MouseEnter:Connect(function()
-    hopBtn.BackgroundColor3 = Color3.fromRGB(100,200,255)
-end)
-hopBtn.MouseLeave:Connect(function()
-    hopBtn.BackgroundColor3 = ON_COLOR
-end)
-
-local autoHopBtn = Instance.new("TextButton")
-autoHopBtn.Size = UDim2.fromOffset((menuWidth - 40) / 2 - 5, 40)
-autoHopBtn.Position = UDim2.new(0.5, 5, 0, 210)
-autoHopBtn.BackgroundColor3 = BUTTON
-autoHopBtn.BorderSizePixel = 0
-autoHopBtn.Text = "🔁 Auto: OFF"
-autoHopBtn.TextColor3 = TEXT
-autoHopBtn.TextSize = 13
-autoHopBtn.Font = Enum.Font.GothamBold
-autoHopBtn.AutoButtonColor = false
-autoHopBtn.ZIndex = 120
-autoHopBtn.Parent = hopPage
-
-local autoCorner = Instance.new("UICorner")
-autoCorner.CornerRadius = UDim.new(0, 8)
-autoCorner.Parent = autoHopBtn
-
-autoHopBtn.MouseEnter:Connect(function()
-    if autoHopBtn.BackgroundColor3 ~= ON_COLOR then
-        autoHopBtn.BackgroundColor3 = BUTTON_HOVER
-    end
-end)
-autoHopBtn.MouseLeave:Connect(function()
-    if autoHopBtn.BackgroundColor3 ~= ON_COLOR then
-        autoHopBtn.BackgroundColor3 = BUTTON
-    end
-end)
-
-local stopAutoBtn = Instance.new("TextButton")
-stopAutoBtn.Size = UDim2.new(1, -20, 0, 35)
-stopAutoBtn.Position = UDim2.fromOffset(10, 260)
-stopAutoBtn.BackgroundColor3 = RED
-stopAutoBtn.BorderSizePixel = 0
-stopAutoBtn.Text = "⏹️ Stop Auto"
-stopAutoBtn.TextColor3 = TEXT
-stopAutoBtn.TextSize = 13
-stopAutoBtn.Font = Enum.Font.GothamBold
-stopAutoBtn.AutoButtonColor = false
-stopAutoBtn.Visible = false
-stopAutoBtn.ZIndex = 120
-stopAutoBtn.Parent = hopPage
-
-local stopAutoCorner = Instance.new("UICorner")
-stopAutoCorner.CornerRadius = UDim.new(0, 8)
-stopAutoCorner.Parent = stopAutoBtn
-
-stopAutoBtn.MouseEnter:Connect(function()
-    stopAutoBtn.BackgroundColor3 = Color3.fromRGB(255,60,60)
-end)
-stopAutoBtn.MouseLeave:Connect(function()
-    stopAutoBtn.BackgroundColor3 = RED
-end)
-
-local TeleportService = game:GetService("TeleportService")
-local PlaceId = game.PlaceId
-local JobId = game.JobId
-local isAutoHoping = false
-local autoHopRunning = false
-
-local function HopServer()
-    local target = tonumber(targetInput.Text) or 5
-    target = math.clamp(target, 0, game.Players.MaxPlayers)
-    
-    statusLabel.Text = "🔍 Searching server..."
-    statusLabel.TextColor3 = YELLOW
-    hopBtn.Text = "⏳ Searching..."
-    
-    local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
-    end)
-    
-    if success and result and result.data then
-        local found = false
-        for _, server in ipairs(result.data) do
-            if server.id ~= JobId and server.playing <= target and server.playing < server.maxPlayers then
-                found = true
-                statusLabel.Text = "✅ Found! (" .. server.playing .. " players)"
-                statusLabel.TextColor3 = GREEN
-                hopBtn.Text = "🚀 Hop Sekali"
-                TeleportService:TeleportToPlaceInstance(PlaceId, server.id, Player)
-                return
-            end
-        end
-        
-        if not found then
-            statusLabel.Text = "❌ No server found with ≤ " .. target .. " players"
-            statusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-            hopBtn.Text = "🚀 Hop Sekali"
-        end
-    else
-        statusLabel.Text = "❌ Failed to get server data!"
-        statusLabel.TextColor3 = Color3.fromRGB(255,100,100)
-        hopBtn.Text = "🚀 Hop Sekali"
-    end
-end
-
-local function startAutoHop()
-    if isAutoHoping then return end
-    isAutoHoping = true
-    autoHopRunning = true
-    autoHopBtn.Text = "🔁 Auto: ON"
-    autoHopBtn.BackgroundColor3 = ON_COLOR
-    stopAutoBtn.Visible = true
-    statusLabel.Text = "🔄 Auto Hop aktif..."
-    statusLabel.TextColor3 = YELLOW
-
-    task.spawn(function()
-        while autoHopRunning do
-            local target = tonumber(targetInput.Text) or 5
-            target = math.clamp(target, 0, game.Players.MaxPlayers)
-            
-            if #Players:GetPlayers() > target then
-                HopServer()
-                task.wait(2)
-            else
-                statusLabel.Text = "🔄 Player count normal (" .. #Players:GetPlayers() .. " ≤ " .. target .. ")"
-                statusLabel.TextColor3 = SUBTEXT
-            end
-            task.wait(3)
-        end
-    end)
-end
-
-local function stopAutoHop()
-    autoHopRunning = false
-    isAutoHoping = false
-    autoHopBtn.Text = "🔁 Auto: OFF"
-    autoHopBtn.BackgroundColor3 = BUTTON
-    stopAutoBtn.Visible = false
-    statusLabel.Text = "Status: ✅ Siap"
-    statusLabel.TextColor3 = SUBTEXT
-end
-
-hopBtn.MouseButton1Click:Connect(HopServer)
-autoHopBtn.MouseButton1Click:Connect(function()
-    if isAutoHoping then stopAutoHop() else startAutoHop() end
-end)
-stopAutoBtn.MouseButton1Click:Connect(stopAutoHop)
-hopPage.CanvasSize = UDim2.new(0, 0, 0, 380)
-
 -- SERVER PAGE
 local loadWaypointBtn = createButton(serverPage, "📍 Load Waypoint Module", 5)
 loadWaypointBtn.BackgroundColor3 = ON_COLOR
@@ -1575,11 +1387,12 @@ infoText.BackgroundTransparency=1
 infoText.Text=[[
 ✅ UPDATE TERBARU
 
+› Smooth Open & Close UI Animation
+› Clean RAM Execution (No Save/Load System)
+› Modern Toggle Switch UI di Kategori Hack
 › Fixed Close Button & Open Button visibility
 › Orbit sekarang terlihat di semua player
 › Ride bisa swap langsung tanpa stop
-› ServerHop di tab Hop
-› Fixed Config system (writefile/readfile)
 
 📋 FITUR
 
@@ -1592,13 +1405,8 @@ Player
 Troll
 • Orbit (Target + Speed Slider)
 
-Hop
-• ServerHop (cari server sepi)
-
 Server
 • Info Game • Player Count • FPS • Ping
-
-💾 Auto Save/Load Config
 ]]
 infoText.TextColor3=SUBTEXT
 infoText.TextSize=13
@@ -1612,13 +1420,11 @@ local function showPage(page,tab)
     hackPage.Visible=false
     playerPage.Visible=false
     trollPage.Visible=false
-    hopPage.Visible=false
     serverPage.Visible=false
     infoPage.Visible=false
     hackTab.BackgroundColor3=BUTTON
     playerTab.BackgroundColor3=BUTTON
     trollTab.BackgroundColor3=BUTTON
-    hopTab.BackgroundColor3=BUTTON
     serverTab.BackgroundColor3=BUTTON
     infoTab.BackgroundColor3=BUTTON
     page.CanvasPosition=Vector2.new(0,0)
@@ -1629,7 +1435,6 @@ end
 hackTab.MouseButton1Click:Connect(function() showPage(hackPage,hackTab) end)
 playerTab.MouseButton1Click:Connect(function() showPage(playerPage,playerTab); refreshPlayerList() end)
 trollTab.MouseButton1Click:Connect(function() showPage(trollPage,trollTab); updateOrbitTargetList() end)
-hopTab.MouseButton1Click:Connect(function() showPage(hopPage,hopTab) end)
 serverTab.MouseButton1Click:Connect(function() showPage(serverPage,serverTab) end)
 infoTab.MouseButton1Click:Connect(function() showPage(infoPage,infoTab) end)
 
@@ -1657,20 +1462,11 @@ end)
 
 openButton.MouseButton1Click:Connect(function()
     if moved then moved=false return end
-    frame.Visible=true
-    openButton.Visible=false
+    openMenuSmooth()
 end)
 
-frame.Visible=true
-openButton.Visible=false
-
-local loaded=loadConfig()
 setSpeed(selectedSpeed)
-if loaded then
-    if wallHack then setWallHack(true); wallHackButton.Text="🧱 Wall Hack        ON"; wallHackButton.BackgroundColor3=ON_COLOR end
-    if infiniteJump then setInfiniteJump(true); jumpButton.Text="🦘 Infinite Jump  ON"; jumpButton.BackgroundColor3=ON_COLOR end
-    if antiAFK then setAntiAFK(true); antiAFKButton.Text="🛌 Anti-AFK        ON"; antiAFKButton.BackgroundColor3=ON_COLOR end
-end
+openMenuSmooth()
 
 showPage(hackPage,hackTab)
 task.defer(refreshPlayerList)
