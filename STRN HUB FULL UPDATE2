@@ -1,5 +1,5 @@
 -- ============================================================
--- STRN HUB v2 — CLEAN EDITION (DYNAMIC LOAD TO TOGGLE BUTTON)
+-- STRN HUB v2 — CLEAN EDITION (INTEGRATED FLY SYSTEM)
 -- ============================================================
 
 local Players=game:GetService("Players")
@@ -18,6 +18,15 @@ local Camera=workspace.CurrentCamera
 local wallHack=false
 local infiniteJump=false
 local antiAFK=false
+
+-- FLY SYSTEM VARIABLES
+local isFlying=false
+local flySpeed=50
+local flyKeybind=Enum.KeyCode.E
+local linearVelocity=nil
+local alignOrientation=nil
+local attachment=nil
+local flyConnection=nil
 
 local orbitActive=false
 local orbitTarget=nil
@@ -61,8 +70,8 @@ local GREEN=Color3.fromRGB(70,255,70)
 local YELLOW=Color3.fromRGB(255,200,50)
 
 local function getCharacter() return Player.Character or Player.CharacterAdded:Wait() end
-local function getHumanoid(c) c=c or getCharacter() return c:FindFirstChildOfClass("Humanoid") end
-local function getRoot(c) if not c then return nil end return c:FindFirstChild("HumanoidRootPart") end
+local function getHumanoid(c) c=c or getCharacter() return c and c:FindFirstChildOfClass("Humanoid") end
+local function getRoot(c) c=c or getCharacter() return c and c:FindFirstChild("HumanoidRootPart") end
 
 local oldGui=PlayerGui:FindFirstChild("STRN HUB")
 if oldGui then oldGui:Destroy() end
@@ -265,12 +274,12 @@ local function createTab(text,x,width)
     return button
 end
 
-local tabWidth=(menuWidth-35)/5
+-- 4 TAB REORGANIZATION (INFO REMOVED)
+local tabWidth=(menuWidth-25)/4
 local hackTab=createTab("Hack",2,tabWidth)
 local playerTab=createTab("Player",4+tabWidth,tabWidth)
 local trollTab=createTab("Troll",6+tabWidth*2,tabWidth)
 local serverTab=createTab("Server",8+tabWidth*3,tabWidth)
-local infoTab=createTab("Info",10+tabWidth*4,tabWidth)
 
 local function createPage(canvasHeight)
     local page=Instance.new("ScrollingFrame")
@@ -289,16 +298,14 @@ local function createPage(canvasHeight)
     return page
 end
 
-local hackPage=createPage(340)
+local hackPage=createPage(470)
 local playerPage=createPage(700)
 local trollPage=createPage(420)
 local serverPage=createPage(450)
-local infoPage=createPage(330)
 
 playerPage.Visible=false
 trollPage.Visible=false
 serverPage.Visible=false
-infoPage.Visible=false
 
 local function createButton(parent,text,y,width)
     local button=Instance.new("TextButton")
@@ -394,6 +401,24 @@ local function createToggleRow(parent,titleText,descText,yPosition,callback)
             end)
         end
     end)
+
+    return function(st)
+        state=st
+        if state then
+            switchBtn.Text="ON"
+            switchBtn.TextColor3=GREEN
+            switchBtn.BackgroundColor3=ON_COLOR
+        else
+            switchBtn.Text="OFF"
+            switchBtn.TextColor3=RED
+            switchBtn.BackgroundColor3=BUTTON
+        end
+        if callback then
+            task.spawn(function()
+                callback(state)
+            end)
+        end
+    end
 end
 
 -- HACK PAGE
@@ -428,9 +453,159 @@ createToggleRow(hackPage, "🧱 Wall Hack", "Menembus tembok dan objek", 28, fun
     setWallHack(isOn)
 end)
 
+-- FLY MECHANICS IMPLEMENTATION
+local function stopFly()
+    isFlying = false
+    if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
+    if linearVelocity then linearVelocity:Destroy(); linearVelocity = nil end
+    if alignOrientation then alignOrientation:Destroy(); alignOrientation = nil end
+    if attachment then attachment:Destroy(); attachment = nil end
+    local hum = getHumanoid()
+    if hum then hum.PlatformStand = false end
+end
+
+local function startFly()
+    stopFly()
+    local root = getRoot()
+    local hum = getHumanoid()
+    if not root or not hum then return end
+
+    isFlying = true
+    hum.PlatformStand = true
+
+    attachment = Instance.new("Attachment")
+    attachment.Name = "FlyAttachment"
+    attachment.Parent = root
+
+    linearVelocity = Instance.new("LinearVelocity")
+    linearVelocity.Attachment0 = attachment
+    linearVelocity.MaxForce = math.huge
+    linearVelocity.VectorVelocity = Vector3.new(0, 0, 0)
+    linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+    linearVelocity.Parent = root
+
+    alignOrientation = Instance.new("AlignOrientation")
+    alignOrientation.Attachment0 = attachment
+    alignOrientation.MaxTorque = math.huge
+    alignOrientation.Responsiveness = 200
+    alignOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    alignOrientation.CFrame = root.CFrame
+    alignOrientation.Parent = root
+
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not isFlying or not getRoot() or not getHumanoid() then
+            stopFly()
+            return
+        end
+
+        hum.PlatformStand = true
+        local moveDir = hum.MoveDirection
+        local cameraCFrame = Camera.CFrame
+        local flyVector = Vector3.new(0, 0, 0)
+
+        if moveDir.Magnitude > 0 then
+            local cameraForward = cameraCFrame.LookVector
+            local cameraRight = cameraCFrame.RightVector
+            local forwardDot = moveDir:Dot(cameraCFrame.LookVector * Vector3.new(1, 0, 1).Unit)
+            local rightDot = moveDir:Dot(cameraCFrame.RightVector * Vector3.new(1, 0, 1).Unit)
+            flyVector = (cameraForward * forwardDot + cameraRight * rightDot).Unit * flySpeed
+        end
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            flyVector = flyVector + Vector3.new(0, flySpeed, 0)
+        elseif UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            flyVector = flyVector - Vector3.new(0, flySpeed, 0)
+        end
+
+        linearVelocity.VectorVelocity = flyVector
+        alignOrientation.CFrame = cameraCFrame
+    end)
+end
+
+local updateFlyToggle = createToggleRow(hackPage, "🕊️ Fly Mode", "Terbang bebas [E] (WASD + Camera)", 88, function(isOn)
+    if isOn then startFly() else stopFly() end
+end)
+
+-- FLY SPEED SLIDER
+local flySpeedLabel=Instance.new("TextLabel")
+flySpeedLabel.Size=UDim2.new(1,-10,0,25)
+flySpeedLabel.Position=UDim2.fromOffset(5,148)
+flySpeedLabel.BackgroundTransparency=1
+flySpeedLabel.Text="🕊️ Fly Speed • 50"
+flySpeedLabel.TextColor3=TEXT
+flySpeedLabel.TextSize=15
+flySpeedLabel.Font=Enum.Font.GothamMedium
+flySpeedLabel.TextXAlignment=Enum.TextXAlignment.Left
+flySpeedLabel.ZIndex=115
+flySpeedLabel.Parent=hackPage
+
+local flySlider=Instance.new("Frame")
+flySlider.Size=UDim2.new(1,-10,0,35)
+flySlider.Position=UDim2.fromOffset(5,175)
+flySlider.BackgroundColor3=BUTTON
+flySlider.BorderSizePixel=0
+flySlider.ZIndex=115
+flySlider.Parent=hackPage
+
+local flySliderCorner=Instance.new("UICorner")
+flySliderCorner.CornerRadius=UDim.new(0,10)
+flySliderCorner.Parent=flySlider
+
+local flyBar=Instance.new("Frame")
+flyBar.Size=UDim2.new(1,-30,0,5)
+flyBar.Position=UDim2.new(0,15,0.5,-2)
+flyBar.BackgroundColor3=Color3.fromRGB(90,90,100)
+flyBar.BorderSizePixel=0
+flyBar.ZIndex=116
+flyBar.Parent=flySlider
+
+local flyBarCorner=Instance.new("UICorner")
+flyBarCorner.CornerRadius=UDim.new(1,0)
+flyBarCorner.Parent=flyBar
+
+local flyKnob=Instance.new("TextButton")
+flyKnob.Size=UDim2.fromOffset(18,18)
+flyKnob.AnchorPoint=Vector2.new(0.5,0.5)
+flyKnob.Position=UDim2.new(0.285,15,0.5,0)
+flyKnob.BackgroundColor3=Color3.fromRGB(255,255,255)
+flyKnob.BorderSizePixel=0
+flyKnob.Text=""
+flyKnob.AutoButtonColor=false
+flyKnob.ZIndex=118
+flyKnob.Parent=flySlider
+
+local flyKnobCorner=Instance.new("UICorner")
+flyKnobCorner.CornerRadius=UDim.new(1,0)
+flyKnobCorner.Parent=flyKnob
+
+local function updateFlySpeedInput(input)
+    local width=flyBar.AbsoluteSize.X
+    if width<=0 then return end
+    local x=math.clamp(input.Position.X-flyBar.AbsolutePosition.X,0,width)
+    local percent=x/width
+    flySpeed=math.floor(10+(percent*140))
+    flyKnob.Position=UDim2.new(0,15+x,0.5,0)
+    flySpeedLabel.Text="🕊️ Fly Speed • "..tostring(flySpeed)
+end
+
+local isDraggingFlySlider = false
+flySlider.InputBegan:Connect(function(input)
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then isDraggingFlySlider=true; updateFlySpeedInput(input) end
+end)
+flyKnob.InputBegan:Connect(function(input)
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then isDraggingFlySlider=true; updateFlySpeedInput(input) end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if isDraggingFlySlider and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then updateFlySpeedInput(input) end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then isDraggingFlySlider=false end
+end)
+
+-- ORIGINAL WALK SPEED SLIDER
 local speedLabel=Instance.new("TextLabel")
 speedLabel.Size=UDim2.new(1,-10,0,25)
-speedLabel.Position=UDim2.fromOffset(5,88)
+speedLabel.Position=UDim2.fromOffset(5,218)
 speedLabel.BackgroundTransparency=1
 speedLabel.Text="💨 Speed • Normal • 0%"
 speedLabel.TextColor3=TEXT
@@ -441,7 +616,7 @@ speedLabel.ZIndex=115
 speedLabel.Parent=hackPage
 local slider=Instance.new("Frame")
 slider.Size=UDim2.new(1,-10,0,35)
-slider.Position=UDim2.fromOffset(5,115)
+slider.Position=UDim2.fromOffset(5,245)
 slider.BackgroundColor3=BUTTON
 slider.BorderSizePixel=0
 slider.ZIndex=115
@@ -471,6 +646,7 @@ knob.Parent=slider
 local knobCorner=Instance.new("UICorner")
 knobCorner.CornerRadius=UDim.new(1,0)
 knobCorner.Parent=knob
+
 local function setSpeed(index)
     index=math.clamp(math.floor(index+0.5),1,#speedLevels)
     selectedSpeed=index
@@ -484,6 +660,7 @@ local function setSpeed(index)
     end
     speedLabel.Text=data.percent==0 and "💨 Speed • Normal • 0%" or ("💨 Speed • "..data.percent.."%")
 end
+
 local function selectSpeed(input)
     local width=bar.AbsoluteSize.X
     if width<=0 then return end
@@ -498,6 +675,7 @@ local function selectSpeed(input)
     end
     setSpeed(closest)
 end
+
 slider.InputBegan:Connect(function(input)
     if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then selectSpeed(input) end
 end)
@@ -516,7 +694,7 @@ local function setInfiniteJump(state)
     end
 end
 
-createToggleRow(hackPage, "🦘 Infinite Jump", "Lompat tanpa batas di udara", 158, function(isOn)
+createToggleRow(hackPage, "🦘 Infinite Jump", "Lompat tanpa batas di udara", 288, function(isOn)
     setInfiniteJump(isOn)
 end)
 
@@ -535,8 +713,17 @@ local function setAntiAFK(state)
     end
 end
 
-createToggleRow(hackPage, "Bedtime Anti-AFK", "Mencegah terputus dari server", 218, function(isOn)
+createToggleRow(hackPage, "Bedtime Anti-AFK", "Mencegah terputus dari server", 348, function(isOn)
     setAntiAFK(isOn)
+end)
+
+-- GLOBAL KEYBIND EVENT (FLY TOGGLE)
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == flyKeybind then
+        isFlying = not isFlying
+        updateFlyToggle(isFlying)
+    end
 end)
 
 -- PLAYER PAGE
@@ -1395,66 +1582,16 @@ task.spawn(function()
     end
 end)
 
--- INFO PAGE
-local infoLabel=Instance.new("TextLabel")
-infoLabel.Size=UDim2.new(1,-10,0,30)
-infoLabel.Position=UDim2.fromOffset(5,0)
-infoLabel.BackgroundTransparency=1
-infoLabel.Text="📌 STRN HUB v2"
-infoLabel.TextColor3=TEXT
-infoLabel.TextSize=20
-infoLabel.Font=Enum.Font.GothamBold
-infoLabel.TextXAlignment=Enum.TextXAlignment.Left
-infoLabel.ZIndex=115
-infoLabel.Parent=infoPage
-
-local infoText=Instance.new("TextLabel")
-infoText.Size=UDim2.new(1,-10,0,260)
-infoText.Position=UDim2.fromOffset(5,35)
-infoText.BackgroundTransparency=1
-infoText.Text=[[
-✅ UPDATE TERBARU
-
-› Smooth Open & Close UI Animation
-› Clean RAM Execution (No Save/Load System)
-› Modern Toggle Switch UI di Kategori Hack
-› Fixed Close Button & Open Button visibility
-› Orbit sekarang terlihat di semua player
-› Ride bisa swap langsung tanpa stop
-
-📋 FITUR
-
-Hack
-• Wall Hack • Speed • Infinite Jump • Anti-AFK
-
-Player
-• Spectate • Ride • Teleport
-
-Troll
-• Orbit (Target + Speed Slider)
-
-Server
-• Info Game • Player Count • FPS • Ping
-]]
-infoText.TextColor3=SUBTEXT
-infoText.TextSize=13
-infoText.Font=Enum.Font.Gotham
-infoText.TextXAlignment=Enum.TextXAlignment.Left
-infoText.TextYAlignment=Enum.TextYAlignment.Top
-infoText.ZIndex=115
-infoText.Parent=infoPage
-
+-- PAGE SWITCHER CONTROL
 local function showPage(page,tab)
     hackPage.Visible=false
     playerPage.Visible=false
     trollPage.Visible=false
     serverPage.Visible=false
-    infoPage.Visible=false
     hackTab.BackgroundColor3=BUTTON
     playerTab.BackgroundColor3=BUTTON
     trollTab.BackgroundColor3=BUTTON
     serverTab.BackgroundColor3=BUTTON
-    infoTab.BackgroundColor3=BUTTON
     page.CanvasPosition=Vector2.new(0,0)
     page.Visible=true
     tab.BackgroundColor3=CATEGORY_SELECTED
@@ -1464,7 +1601,6 @@ hackTab.MouseButton1Click:Connect(function() showPage(hackPage,hackTab) end)
 playerTab.MouseButton1Click:Connect(function() showPage(playerPage,playerTab); refreshPlayerList() end)
 trollTab.MouseButton1Click:Connect(function() showPage(trollPage,trollTab); updateOrbitTargetList() end)
 serverTab.MouseButton1Click:Connect(function() showPage(serverPage,serverTab) end)
-infoTab.MouseButton1Click:Connect(function() showPage(infoPage,infoTab) end)
 
 -- DRAGGING LOGIC FOR OPEN BUTTON
 local dragging=false
@@ -1503,6 +1639,7 @@ Player.CharacterAdded:Connect(function(character)
     local humanoid=character:WaitForChild("Humanoid")
     humanoid.WalkSpeed=speedLevels[selectedSpeed].speed
     if wallHack then task.wait(0.5); setWallHack(true) end
+    if isFlying then task.wait(0.5); startFly() end
     if spectatingPlayer then
         task.wait(0.5)
         local targetHumanoid=getHumanoid(spectatingPlayer.Character)
@@ -1517,6 +1654,7 @@ Player.CharacterAdded:Connect(function(character)
 end)
 
 gui.Destroying:Connect(function()
+    stopFly()
     if wallHackConnection then wallHackConnection:Disconnect(); wallHackConnection=nil end
     if jumpConnection then jumpConnection:Disconnect(); jumpConnection=nil end
     if spectatorConnection then spectatorConnection:Disconnect(); spectatorConnection=nil end
