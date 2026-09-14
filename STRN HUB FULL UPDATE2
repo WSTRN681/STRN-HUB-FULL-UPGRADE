@@ -1,12 +1,11 @@
 -- ============================================================
--- SCRIPT 1: STRN HUB v2 (REVISED: ORBIT AVATAR + AUTO-SPECTATE)
+-- SCRIPT 1: STRN HUB v2 (AUTO-REATTACH ORBIT & RIDE ON RESPAWN)
 -- ============================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
-local MarketplaceService = game:GetService("MarketplaceService")
 local Stats = game:GetService("Stats")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
@@ -15,9 +14,22 @@ local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local Camera = workspace.CurrentCamera
 
-local function getCharacter() return Player.Character or Player.CharacterAdded:Wait() end
-local function getHumanoid(c) c = c or getCharacter() return c and c:FindFirstChildOfClass("Humanoid") end
-local function getRoot(c) c = c or getCharacter() return c and c:FindFirstChild("HumanoidRootPart") end
+local function getCharacter(targetP) 
+    targetP = targetP or Player 
+    return targetP.Character 
+end
+
+local function getHumanoid(cOrPlayer) 
+    local char = (typeof(cOrPlayer) == "Instance" and cOrPlayer:IsA("Player")) and cOrPlayer.Character or cOrPlayer
+    char = char or getCharacter() 
+    return char and char:FindFirstChildOfClass("Humanoid") 
+end
+
+local function getRoot(cOrPlayer) 
+    local char = (typeof(cOrPlayer) == "Instance" and cOrPlayer:IsA("Player")) and cOrPlayer.Character or cOrPlayer
+    char = char or getCharacter() 
+    return char and char:FindFirstChild("HumanoidRootPart") 
+end
 
 -- Hapus GUI lama jika ada
 local oldGui = PlayerGui:FindFirstChild("STRN HUB v2")
@@ -31,7 +43,7 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 gui.DisplayOrder = 999999
 gui.Parent = PlayerGui
 
--- PALET WARNA (Dark Shadow / Frosted Glass)
+-- PALET WARNA (Dark Shadow Glass)
 local BG_COLOR = Color3.fromRGB(18, 18, 24)
 local CARD_BG = Color3.fromRGB(28, 28, 36)
 local BUTTON_BG = Color3.fromRGB(35, 35, 45)
@@ -195,6 +207,7 @@ end)
 
 -- TOAST NOTIFICATIONS
 local toastContainer = Instance.new("Frame")
+toastContainer.Name = "STRN_ToastContainer"
 toastContainer.Size = UDim2.new(0, 220, 1, 0)
 toastContainer.Position = UDim2.new(1, -230, 0, -10)
 toastContainer.BackgroundTransparency = 1
@@ -526,7 +539,7 @@ local function addSliderRow(parent, titleText, yPos, minVal, maxVal, defaultVal,
 end
 
 -- ============================================================
--- 1. TAB HACK (LOGIKA ASLI)
+-- 1. TAB HACK
 -- ============================================================
 local wallHackConn = nil
 addToggleRow(pages.Hack, "🧱 Wall Hack", 0, function(state)
@@ -669,7 +682,7 @@ end)
 pages.Hack.CanvasSize = UDim2.new(0, 0, 0, 310)
 
 -- ============================================================
--- 2. TAB PLAYER
+-- 2. TAB PLAYER (REVISED: PERSISTENT RIDE ON RESPAWN)
 -- ============================================================
 local playerScroll = pages.Player
 
@@ -783,9 +796,11 @@ local function refreshPlayerList()
                     stopSpectating()
                     spectatingPlayer = targetP
                     spectatorConn = RunService.RenderStepped:Connect(function()
-                        if spectatingPlayer and spectatingPlayer.Character then
-                            local hum = getHumanoid(spectatingPlayer.Character)
-                            if hum then Camera.CameraSubject = hum else stopSpectating() end
+                        if spectatingPlayer then
+                            local tHum = getHumanoid(spectatingPlayer)
+                            if tHum then 
+                                Camera.CameraSubject = tHum 
+                            end
                         else stopSpectating() end
                     end)
                     showToast("Spectate Target", "Mengamati " .. targetP.DisplayName, ACCENT_GREEN)
@@ -793,7 +808,7 @@ local function refreshPlayerList()
                 refreshPlayerList()
             end)
 
-            -- RIDE
+            -- RIDE (DENGAN TAHAN RESPAWN PERSISTENT)
             local rideBtn = Instance.new("TextButton")
             rideBtn.Size = UDim2.fromOffset(36, 26)
             rideBtn.Position = UDim2.new(1, -82, 0.5, -13)
@@ -817,14 +832,14 @@ local function refreshPlayerList()
                 else
                     stopRide()
                     ridingPlayer = targetP
-                    rideConn = RunService.RenderStepped:Connect(function()
-                        if ridingPlayer and ridingPlayer.Character then
-                            local tRoot = getRoot(ridingPlayer.Character)
+                    rideConn = RunService.Heartbeat:Connect(function()
+                        if ridingPlayer then
+                            local tRoot = getRoot(ridingPlayer)
                             local myRoot = getRoot()
                             if tRoot and myRoot then
                                 myRoot.CFrame = CFrame.new(tRoot.Position + RIDE_OFFSET)
                                 myRoot.AssemblyLinearVelocity = Vector3.zero
-                            else stopRide() end
+                            end
                         else stopRide() end
                     end)
                     showToast("Ride Player", "Menunggangi " .. targetP.DisplayName, ACCENT_GREEN)
@@ -851,7 +866,7 @@ local function refreshPlayerList()
 
             tpBtn.MouseButton1Click:Connect(function()
                 local root = getRoot()
-                local tRoot = getRoot(targetP.Character)
+                local tRoot = getRoot(targetP)
                 if root and tRoot then
                     root.CFrame = tRoot.CFrame * CFrame.new(0, 0, -3)
                     showToast("Teleport Player", "Teleport ke " .. targetP.DisplayName, ACCENT_BLUE)
@@ -871,7 +886,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- ============================================================
--- 3. TAB TROLL (REVISED: AVATAR DROPDOWN + AUTO-SPECTATE TARGET)
+-- 3. TAB TROLL (REVISED: PERSISTENT ORBIT ON RESPAWN)
 -- ============================================================
 local trollPage = pages.Troll
 trollPage.CanvasSize = UDim2.new(0, 0, 0, 220)
@@ -1014,7 +1029,6 @@ local function stopOrbit()
     orbitToggleBtn.Text = "🌀 Start Orbit"
     orbitToggleBtn.BackgroundColor3 = ACCENT_RED
     
-    -- KEMBALIKAN POV KAMERA KE KARAKTER SENDIRI
     Camera.CameraType = Enum.CameraType.Custom
     local hum = getHumanoid()
     if hum then 
@@ -1028,7 +1042,7 @@ orbitToggleBtn.MouseButton1Click:Connect(function()
         stopOrbit()
         showToast("Orbit Troll", "Orbit & Spectate Dihentikan", ACCENT_BLUE)
     else
-        if not selectedOrbitTarget or not selectedOrbitTarget.Character then
+        if not selectedOrbitTarget then
             showToast("Orbit Troll", "Pilih target player dulu!", ACCENT_RED)
             return
         end
@@ -1037,24 +1051,29 @@ orbitToggleBtn.MouseButton1Click:Connect(function()
         orbitToggleBtn.BackgroundColor3 = ACCENT_BLUE
         showToast("Orbit Troll", "Orbiting & Spectating " .. selectedOrbitTarget.DisplayName, ACCENT_GREEN)
 
-        local hum = getHumanoid()
-        if hum then hum.PlatformStand = true end
-
         orbitAngle = 0
         orbitConn = RunService.Heartbeat:Connect(function(dt)
-            if not isOrbiting or not selectedOrbitTarget or not selectedOrbitTarget.Character then
+            if not isOrbiting or not selectedOrbitTarget then
                 stopOrbit()
                 return
             end
 
-            -- AUTO SPECTATE: KUNCI POV KAMERA KE TARGET YANG SEDANG DI-TROLL
-            local targetHum = getHumanoid(selectedOrbitTarget.Character)
+            -- OTOMATIS AKTIFKAN PLATFORMSTAND KAMU JIKA HUMANOID KAMU ADA (RESPAWNED)
+            local myHum = getHumanoid()
+            if myHum then 
+                myHum.PlatformStand = true 
+            end
+
+            -- AUTO SPECTATE PERSISTENT (JIKA TARGET RESPAWN / TERSEDIA)
+            local targetHum = getHumanoid(selectedOrbitTarget)
             if targetHum and Camera.CameraSubject ~= targetHum then
                 Camera.CameraSubject = targetHum
             end
 
+            -- KALKULASI ORBIT (AKAN MENUNGGU DAN OTOMATIS MENEMPEL JIKA KARAKTER KAMU / TARGET MUNCUL)
             local myRoot = getRoot()
-            local tRoot = getRoot(selectedOrbitTarget.Character)
+            local tRoot = getRoot(selectedOrbitTarget)
+
             if myRoot and tRoot then
                 orbitAngle = orbitAngle + (dt * orbitSpeed * 2.5)
                 local radius = 8
@@ -1063,7 +1082,7 @@ orbitToggleBtn.MouseButton1Click:Connect(function()
                 local y = tRoot.Position.Y + 2
                 myRoot.CFrame = CFrame.new(Vector3.new(x, y, z), tRoot.Position)
                 myRoot.AssemblyLinearVelocity = Vector3.zero
-            else stopOrbit() end
+            end
         end)
     end
 end)
@@ -1158,3 +1177,4 @@ gui.Destroying:Connect(function()
     if infJumpConn then infJumpConn:Disconnect() end
     if antiAFKConn then antiAFKConn:Disconnect() end
 end)
+2
