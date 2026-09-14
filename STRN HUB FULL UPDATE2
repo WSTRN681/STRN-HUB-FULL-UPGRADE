@@ -1,465 +1,566 @@
 -- ============================================================
--- STRN HUB v2 — CLEAN EDITION (INTEGRATED FLY SYSTEM)
+-- SCRIPT 1: STRN HUB v2 (REVISED: ORBIT AVATAR + AUTO-SPECTATE)
 -- ============================================================
 
-local Players=game:GetService("Players")
-local UserInputService=game:GetService("UserInputService")
-local RunService=game:GetService("RunService")
-local Lighting=game:GetService("Lighting")
-local MarketplaceService=game:GetService("MarketplaceService")
-local Stats=game:GetService("Stats")
-local HttpService=game:GetService("HttpService")
-local TweenService=game:GetService("TweenService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Stats = game:GetService("Stats")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
 
-local Player=Players.LocalPlayer
-local PlayerGui=Player:WaitForChild("PlayerGui")
-local Camera=workspace.CurrentCamera
-
-local wallHack=false
-local infiniteJump=false
-local antiAFK=false
-
--- FLY SYSTEM VARIABLES
-local isFlying=false
-local flySpeed=50
-local flyKeybind=Enum.KeyCode.E
-local linearVelocity=nil
-local alignOrientation=nil
-local attachment=nil
-local flyConnection=nil
-
-local orbitActive=false
-local orbitTarget=nil
-local orbitSpeed=2
-local orbitRadius=0
-local orbitConnection=nil
-local orbitAngle=0
-local orbitRandomY=0
-
-local wallHackConnection
-local jumpConnection
-local spectatorConnection
-local fpsConnection
-local rideConnection
-local antiAFKConnection
-
-local speedLevels={{percent=0,speed=16},{percent=25,speed=37},{percent=50,speed=58},{percent=75,speed=79},{percent=100,speed=100}}
-local selectedSpeed=1
-local spectatingPlayer=nil
-local selectedSpectButton=nil
-local spectateTargetName=nil
-local ridingPlayer=nil
-local selectedRideButton=nil
-local rideTargetName=nil
-local RIDE_HEIGHT=4
-local RIDE_OFFSET=Vector3.new(0,RIDE_HEIGHT,0)
-
-local BG=Color3.fromRGB(20,20,25)
-local CARD_BG=Color3.fromRGB(30,30,38)
-local BUTTON=Color3.fromRGB(35,35,43)
-local BUTTON_HOVER=Color3.fromRGB(50,50,60)
-local CATEGORY_SELECTED=Color3.fromRGB(35,125,255)
-local SPECT_SELECTED=Color3.fromRGB(255,145,35)
-local RIDE_SELECTED=Color3.fromRGB(70,200,120)
-local ON_COLOR=Color3.fromRGB(70,180,255)
-local TROLL_COLOR=Color3.fromRGB(255,70,70)
-local TEXT=Color3.fromRGB(235,235,240)
-local SUBTEXT=Color3.fromRGB(150,150,160)
-local RED=Color3.fromRGB(220,50,50)
-local GREEN=Color3.fromRGB(70,255,70)
-local YELLOW=Color3.fromRGB(255,200,50)
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local Camera = workspace.CurrentCamera
 
 local function getCharacter() return Player.Character or Player.CharacterAdded:Wait() end
-local function getHumanoid(c) c=c or getCharacter() return c and c:FindFirstChildOfClass("Humanoid") end
-local function getRoot(c) c=c or getCharacter() return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHumanoid(c) c = c or getCharacter() return c and c:FindFirstChildOfClass("Humanoid") end
+local function getRoot(c) c = c or getCharacter() return c and c:FindFirstChild("HumanoidRootPart") end
 
-local oldGui=PlayerGui:FindFirstChild("STRN HUB")
+-- Hapus GUI lama jika ada
+local oldGui = PlayerGui:FindFirstChild("STRN HUB v2")
 if oldGui then oldGui:Destroy() end
 
-local gui=Instance.new("ScreenGui")
-gui.Name="STRN HUB"
-gui.ResetOnSpawn=false
-gui.IgnoreGuiInset=true
-gui.ZIndexBehavior=Enum.ZIndexBehavior.Global
-gui.DisplayOrder=999999
-gui.Parent=PlayerGui
+local gui = Instance.new("ScreenGui")
+gui.Name = "STRN HUB v2"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+gui.DisplayOrder = 999999
+gui.Parent = PlayerGui
 
-local hiddenTriggerIcon = Instance.new("TextButton")
-hiddenTriggerIcon.Name = "HiddenTrigger"
-hiddenTriggerIcon.Size = UDim2.fromOffset(20, 20)
-hiddenTriggerIcon.Position = UDim2.new(1, -25, 0, 5)
-hiddenTriggerIcon.BackgroundTransparency = 1
-hiddenTriggerIcon.Text = ""
-hiddenTriggerIcon.Active = false
-hiddenTriggerIcon.Selectable = false
-hiddenTriggerIcon.ZIndex = 999999
-hiddenTriggerIcon.Parent = gui
+-- PALET WARNA (Dark Shadow / Frosted Glass)
+local BG_COLOR = Color3.fromRGB(18, 18, 24)
+local CARD_BG = Color3.fromRGB(28, 28, 36)
+local BUTTON_BG = Color3.fromRGB(35, 35, 45)
+local BUTTON_HOVER = Color3.fromRGB(50, 50, 60)
+local ACCENT_BLUE = Color3.fromRGB(35, 125, 255)
+local ACCENT_GREEN = Color3.fromRGB(45, 180, 100)
+local ACCENT_RED = Color3.fromRGB(220, 50, 60)
+local TEXT_MAIN = Color3.fromRGB(240, 240, 245)
+local TEXT_SUB = Color3.fromRGB(150, 150, 165)
+local SPECT_COLOR = Color3.fromRGB(235, 130, 35)
+local RIDE_COLOR = Color3.fromRGB(45, 175, 110)
 
-local viewport=Camera.ViewportSize
-local menuWidth=math.clamp(viewport.X*0.82,270,330)
-local menuHeight=math.clamp(viewport.Y*0.62,360,430)
+local NORMAL_WIDTH = 450
+local COMPACT_WIDTH = 340
+local MENU_HEIGHT = 320
 
-local normalPos=UDim2.new(0,75,0.5,-menuHeight/2)
-local normalSize=UDim2.fromOffset(menuWidth,menuHeight)
-local hiddenSize=UDim2.fromOffset(menuWidth*0.8,menuHeight*0.8)
-
-local frame=Instance.new("Frame")
-frame.Name="Main"
-frame.Size=hiddenSize
-frame.Position=normalPos
-frame.BackgroundColor3=BG
-frame.BorderSizePixel=0
-frame.BackgroundTransparency=1
-frame.Active=true
-frame.ZIndex=100
-frame.Parent=gui
-
-local frameCorner=Instance.new("UICorner")
-frameCorner.CornerRadius=UDim.new(0,15)
-frameCorner.Parent=frame
-local frameStroke=Instance.new("UIStroke")
-frameStroke.Color=Color3.fromRGB(80,80,90)
-frameStroke.Thickness=1
-frameStroke.Transparency=1
-frameStroke.Parent=frame
-
-local title=Instance.new("TextLabel")
-title.Size=UDim2.new(1,-60,0,42)
-title.Position=UDim2.fromOffset(14,5)
-title.BackgroundTransparency=1
-title.Text="STRN HUB v2"
-title.TextColor3=TEXT
-title.TextSize=25
-title.Font=Enum.Font.GothamBold
-title.TextXAlignment=Enum.TextXAlignment.Left
-title.ZIndex=110
-title.Parent=frame
-
-local dragButton=Instance.new("TextButton")
-dragButton.Size=UDim2.fromOffset(32,32)
-dragButton.Position=UDim2.new(1,-84,0,10)
-dragButton.BackgroundColor3=BUTTON
-dragButton.BorderSizePixel=0
-dragButton.Text="−"
-dragButton.TextColor3=TEXT
-dragButton.TextSize=20
-dragButton.Font=Enum.Font.GothamBold
-dragButton.AutoButtonColor=false
-dragButton.ZIndex=120
-dragButton.Parent=frame
-local dragCorner=Instance.new("UICorner")
-dragCorner.CornerRadius=UDim.new(0,8)
-dragCorner.Parent=dragButton
-
-local closeButton=Instance.new("TextButton")
-closeButton.Size=UDim2.fromOffset(32,32)
-closeButton.Position=UDim2.new(1,-42,0,10)
-closeButton.BackgroundColor3=BUTTON
-closeButton.BorderSizePixel=0
-closeButton.Text="✕"
-closeButton.TextColor3=TEXT
-closeButton.TextSize=16
-closeButton.Font=Enum.Font.GothamBold
-closeButton.AutoButtonColor=false
-closeButton.ZIndex=120
-closeButton.Parent=frame
-local closeCorner=Instance.new("UICorner")
-closeCorner.CornerRadius=UDim.new(0,8)
-closeCorner.Parent=closeButton
-
-local openButton=Instance.new("TextButton")
-openButton.Name="OpenButton"
-openButton.Size=UDim2.fromOffset(55,55)
-openButton.Position=UDim2.new(0,20,0.5,-27)
-openButton.BackgroundColor3=BG
-openButton.BorderSizePixel=0
-openButton.Text="STRN"
-openButton.TextColor3=TEXT
-openButton.TextSize=13
-openButton.Font=Enum.Font.GothamBold
-openButton.AutoButtonColor=false
-openButton.Visible=false
-openButton.Active=true
-openButton.ZIndex=999999
-openButton.Parent=gui
-local openCorner=Instance.new("UICorner")
-openCorner.CornerRadius=UDim.new(1,0)
-openCorner.Parent=openButton
-local openStroke=Instance.new("UIStroke")
-openStroke.Color=Color3.fromRGB(80,80,90)
-openStroke.Thickness=2
-openStroke.Parent=openButton
-
+local isCompact = false
 local isAnimating = false
 
-local function openMenuSmooth()
-    if isAnimating then return end
-    isAnimating = true
-    openButton.Visible = false
-    frame.Size = hiddenSize
-    frame.BackgroundTransparency = 1
-    frameStroke.Transparency = 1
+-- MAIN FRAME
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.fromOffset(NORMAL_WIDTH, MENU_HEIGHT)
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+frame.BackgroundColor3 = BG_COLOR
+frame.BackgroundTransparency = 0.15
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.ClipsDescendants = false
+frame.ZIndex = 100
+frame.Parent = gui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 12)
+frameCorner.Parent = frame
+
+local frameStroke = Instance.new("UIStroke")
+frameStroke.Color = Color3.fromRGB(70, 70, 85)
+frameStroke.Thickness = 1.5
+frameStroke.Transparency = 0.2
+frameStroke.Parent = frame
+
+-- TOPBAR
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -120, 0, 36)
+titleLabel.Position = UDim2.fromOffset(14, 2)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "STRN HUB v2"
+titleLabel.TextColor3 = TEXT_MAIN
+titleLabel.TextSize = 17
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 110
+titleLabel.Parent = frame
+
+local compactButton = Instance.new("TextButton")
+compactButton.Size = UDim2.fromOffset(28, 28)
+compactButton.Position = UDim2.new(1, -70, 0, 6)
+compactButton.BackgroundColor3 = BUTTON_BG
+compactButton.BorderSizePixel = 0
+compactButton.Text = "↔️"
+compactButton.TextColor3 = TEXT_MAIN
+compactButton.TextSize = 13
+compactButton.Font = Enum.Font.GothamBold
+compactButton.AutoButtonColor = false
+compactButton.ZIndex = 120
+compactButton.Parent = frame
+
+local compactCorner = Instance.new("UICorner")
+compactCorner.CornerRadius = UDim.new(0, 7)
+compactCorner.Parent = compactButton
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.fromOffset(28, 28)
+closeButton.Position = UDim2.new(1, -36, 0, 6)
+closeButton.BackgroundColor3 = BUTTON_BG
+closeButton.BorderSizePixel = 0
+closeButton.Text = "✕"
+closeButton.TextColor3 = TEXT_MAIN
+closeButton.TextSize = 13
+closeButton.Font = Enum.Font.GothamBold
+closeButton.AutoButtonColor = false
+closeButton.ZIndex = 120
+closeButton.Parent = frame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 7)
+closeCorner.Parent = closeButton
+
+-- FLOATING BUTTON "STRN"
+local openButton = Instance.new("TextButton")
+openButton.Name = "OpenButton"
+openButton.Size = UDim2.fromOffset(50, 50)
+openButton.Position = UDim2.new(0, 20, 0.5, -25)
+openButton.BackgroundColor3 = BG_COLOR
+openButton.BackgroundTransparency = 0.1
+openButton.BorderSizePixel = 0
+openButton.Text = "STRN"
+openButton.TextColor3 = TEXT_MAIN
+openButton.TextSize = 12
+openButton.Font = Enum.Font.GothamBold
+openButton.AutoButtonColor = false
+openButton.Visible = false
+openButton.Active = true
+openButton.ZIndex = 999999
+openButton.Parent = gui
+
+local openCorner = Instance.new("UICorner")
+openCorner.CornerRadius = UDim.new(1, 0)
+openCorner.Parent = openButton
+
+local openStroke = Instance.new("UIStroke")
+openStroke.Color = ACCENT_BLUE
+openStroke.Thickness = 2
+openStroke.Parent = openButton
+
+local function openMenu()
     frame.Visible = true
+    openButton.Visible = false
+end
 
-    local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-    local tweenSize = TweenService:Create(frame, tweenInfo, {Size = normalSize, BackgroundTransparency = 0})
-    local tweenStroke = TweenService:Create(frameStroke, tweenInfo, {Transparency = 0})
+local function closeMenu()
+    frame.Visible = false
+    openButton.Visible = true
+end
 
-    tweenSize:Play()
-    tweenStroke:Play()
-    tweenSize.Completed:Connect(function()
-        isAnimating = false
+closeButton.MouseButton1Click:Connect(closeMenu)
+
+local function enableDrag(dragObj, targetObj)
+    local dragging, dragStart, startPos, moved = false, nil, nil, false
+    dragObj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            moved = false
+            dragStart = input.Position
+            startPos = targetObj.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then moved = true end
+            targetObj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    return function() return moved end
+end
+
+enableDrag(titleLabel, frame)
+local isIconMoved = enableDrag(openButton, openButton)
+openButton.MouseButton1Click:Connect(function()
+    if isIconMoved() then return end
+    openMenu()
+end)
+
+-- TOAST NOTIFICATIONS
+local toastContainer = Instance.new("Frame")
+toastContainer.Size = UDim2.new(0, 220, 1, 0)
+toastContainer.Position = UDim2.new(1, -230, 0, -10)
+toastContainer.BackgroundTransparency = 1
+toastContainer.ZIndex = 9999999
+toastContainer.Parent = gui
+
+local toastLayout = Instance.new("UIListLayout")
+toastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+toastLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+toastLayout.Padding = UDim.new(0, 8)
+toastLayout.Parent = toastContainer
+
+local function showToast(titleText, descText, accentColor)
+    accentColor = accentColor or ACCENT_BLUE
+    local toast = Instance.new("Frame")
+    toast.Size = UDim2.fromOffset(210, 46)
+    toast.BackgroundColor3 = BG_COLOR
+    toast.BackgroundTransparency = 0.15
+    toast.BorderSizePixel = 0
+    toast.ZIndex = 9999999
+    toast.Parent = toastContainer
+
+    local tCorner = Instance.new("UICorner")
+    tCorner.CornerRadius = UDim.new(0, 8)
+    tCorner.Parent = toast
+
+    local tStroke = Instance.new("UIStroke")
+    tStroke.Color = accentColor
+    tStroke.Thickness = 1.5
+    tStroke.Parent = toast
+
+    local tTitle = Instance.new("TextLabel")
+    tTitle.Size = UDim2.new(1, -16, 0, 20)
+    tTitle.Position = UDim2.fromOffset(10, 4)
+    tTitle.BackgroundTransparency = 1
+    tTitle.Text = titleText
+    tTitle.TextColor3 = TEXT_MAIN
+    tTitle.TextSize = 11
+    tTitle.Font = Enum.Font.GothamBold
+    tTitle.TextXAlignment = Enum.TextXAlignment.Left
+    tTitle.ZIndex = 10000000
+    tTitle.Parent = toast
+
+    local tDesc = Instance.new("TextLabel")
+    tDesc.Size = UDim2.new(1, -16, 0, 18)
+    tDesc.Position = UDim2.fromOffset(10, 22)
+    tDesc.BackgroundTransparency = 1
+    tDesc.Text = descText
+    tDesc.TextColor3 = TEXT_SUB
+    tDesc.TextSize = 9
+    tDesc.Font = Enum.Font.GothamMedium
+    tDesc.TextXAlignment = Enum.TextXAlignment.Left
+    tDesc.ZIndex = 10000000
+    tDesc.Parent = toast
+
+    task.spawn(function()
+        task.wait(2.5)
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local tFade = TweenService:Create(toast, tweenInfo, {BackgroundTransparency = 1})
+        TweenService:Create(tTitle, tweenInfo, {TextTransparency = 1}):Play()
+        TweenService:Create(tDesc, tweenInfo, {TextTransparency = 1}):Play()
+        TweenService:Create(tStroke, tweenInfo, {Transparency = 1}):Play()
+        tFade:Play()
+        tFade.Completed:Connect(function() toast:Destroy() end)
     end)
 end
 
-local function closeMenuSmooth()
+-- SIDEBAR & CONTENT AREA
+local sidebar = Instance.new("Frame")
+sidebar.Name = "Sidebar"
+sidebar.Size = UDim2.new(0, 115, 1, -45)
+sidebar.Position = UDim2.fromOffset(8, 40)
+sidebar.BackgroundTransparency = 1
+sidebar.ZIndex = 110
+sidebar.Parent = frame
+
+local contentArea = Instance.new("Frame")
+contentArea.Name = "ContentArea"
+contentArea.Size = UDim2.new(1, -133, 1, -45)
+contentArea.Position = UDim2.fromOffset(125, 40)
+contentArea.BackgroundTransparency = 1
+contentArea.ClipsDescendants = true
+contentArea.ZIndex = 110
+contentArea.Parent = frame
+
+local tabButtons = {}
+local categoryData = {
+    { id = "Hack", icon = "🎮", name = "Hack" },
+    { id = "Player", icon = "👥", name = "Player" },
+    { id = "Troll", icon = "🎭", name = "Troll" },
+    { id = "Server", icon = "🖥️", name = "Server" }
+}
+
+compactButton.MouseButton1Click:Connect(function()
     if isAnimating then return end
     isAnimating = true
+    isCompact = not isCompact
 
-    local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-    local tweenSize = TweenService:Create(frame, tweenInfo, {Size = hiddenSize, BackgroundTransparency = 1})
-    local tweenStroke = TweenService:Create(frameStroke, tweenInfo, {Transparency = 1})
+    local targetWidth = isCompact and COMPACT_WIDTH or NORMAL_WIDTH
+    local targetSidebarWidth = isCompact and 42 or 115
+    local targetContentOffset = isCompact and 58 or 125
+    local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
-    tweenSize:Play()
-    tweenStroke:Play()
-    tweenSize.Completed:Connect(function()
-        frame.Visible = false
-        openButton.Visible = true
-        isAnimating = false
-    end)
-end
+    local tweenFrame = TweenService:Create(frame, tweenInfo, { Size = UDim2.fromOffset(targetWidth, MENU_HEIGHT) })
+    local tweenSidebar = TweenService:Create(sidebar, tweenInfo, { Size = UDim2.new(0, targetSidebarWidth, 1, -45) })
+    local tweenContent = TweenService:Create(contentArea, tweenInfo, { 
+        Size = UDim2.new(1, -(targetContentOffset + 8), 1, -45),
+        Position = UDim2.fromOffset(targetContentOffset, 40)
+    })
 
-closeButton.MouseButton1Click:Connect(closeMenuSmooth)
+    tweenFrame:Play()
+    tweenSidebar:Play()
+    tweenContent:Play()
 
-local isDraggingMenu=false
-local dragStartPos=nil
-local dragStartMouse=nil
-dragButton.MouseButton1Down:Connect(function()
-    isDraggingMenu=true
-    dragStartPos=frame.Position
-    dragStartMouse=UserInputService:GetMouseLocation()
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if not isDraggingMenu then return end
-    if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
-        local currentMouse=UserInputService:GetMouseLocation()
-        local delta=currentMouse-dragStartMouse
-        frame.Position=UDim2.new(dragStartPos.X.Scale,dragStartPos.X.Offset+delta.X,dragStartPos.Y.Scale,dragStartPos.Y.Offset+delta.Y)
+    for _, btn in pairs(tabButtons) do
+        local data = btn.Data
+        btn.Button.Text = isCompact and data.icon or (data.icon .. "  " .. data.name)
     end
-end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-        isDraggingMenu=false
-    end
+
+    titleLabel.Text = isCompact and "STRN" or "STRN HUB v2"
+    tweenFrame.Completed:Connect(function() isAnimating = false end)
 end)
 
-local function createTab(text,x,width)
-    local button=Instance.new("TextButton")
-    button.Size=UDim2.fromOffset(width,38)
-    button.Position=UDim2.fromOffset(x,52)
-    button.BackgroundColor3=BUTTON
-    button.BorderSizePixel=0
-    button.Text=text
-    button.TextColor3=TEXT
-    button.TextSize=12
-    button.Font=Enum.Font.GothamBold
-    button.AutoButtonColor=false
-    button.ZIndex=110
-    button.Parent=frame
-    local corner=Instance.new("UICorner")
-    corner.CornerRadius=UDim.new(0,9)
-    corner.Parent=button
-    button.MouseEnter:Connect(function() if button.BackgroundColor3==BUTTON then button.BackgroundColor3=BUTTON_HOVER end end)
-    button.MouseLeave:Connect(function() if button.BackgroundColor3==BUTTON_HOVER then button.BackgroundColor3=BUTTON end end)
-    return button
-end
-
--- 4 TAB REORGANIZATION (INFO REMOVED)
-local tabWidth=(menuWidth-25)/4
-local hackTab=createTab("Hack",2,tabWidth)
-local playerTab=createTab("Player",4+tabWidth,tabWidth)
-local trollTab=createTab("Troll",6+tabWidth*2,tabWidth)
-local serverTab=createTab("Server",8+tabWidth*3,tabWidth)
-
-local function createPage(canvasHeight)
-    local page=Instance.new("ScrollingFrame")
-    page.Size=UDim2.new(1,-20,1,-105)
-    page.Position=UDim2.fromOffset(10,100)
-    page.BackgroundTransparency=1
-    page.BorderSizePixel=0
-    page.ScrollBarThickness=5
-    page.ScrollBarImageTransparency=0.2
-    page.ScrollBarImageColor3=Color3.fromRGB(100,100,110)
-    page.ScrollingDirection=Enum.ScrollingDirection.Y
-    page.CanvasSize=UDim2.new(0,0,0,canvasHeight)
-    page.Active=true
-    page.ZIndex=105
-    page.Parent=frame
+local function createPage()
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Color3.fromRGB(90, 90, 105)
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.Visible = false
+    page.ZIndex = 115
+    page.Parent = contentArea
     return page
 end
 
-local hackPage=createPage(470)
-local playerPage=createPage(700)
-local trollPage=createPage(420)
-local serverPage=createPage(450)
+local pages = {
+    Hack = createPage(),
+    Player = createPage(),
+    Troll = createPage(),
+    Server = createPage()
+}
 
-playerPage.Visible=false
-trollPage.Visible=false
-serverPage.Visible=false
+for i, cat in ipairs(categoryData) do
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Size = UDim2.new(1, 0, 0, 36)
+    tabBtn.Position = UDim2.fromOffset(0, (i - 1) * 42)
+    tabBtn.BackgroundColor3 = (i == 1) and ACCENT_BLUE or BUTTON_BG
+    tabBtn.BorderSizePixel = 0
+    tabBtn.Text = cat.icon .. "  " .. cat.name
+    tabBtn.TextColor3 = TEXT_MAIN
+    tabBtn.TextSize = 12
+    tabBtn.Font = Enum.Font.GothamBold
+    tabBtn.AutoButtonColor = false
+    tabBtn.ZIndex = 112
+    tabBtn.Parent = sidebar
 
-local function createButton(parent,text,y,width)
-    local button=Instance.new("TextButton")
-    button.Size=UDim2.new(1,-10,0,45)
-    button.Position=UDim2.fromOffset(5,y)
-    if width then button.Size=UDim2.fromOffset(width,45) end
-    button.BackgroundColor3=BUTTON
-    button.BorderSizePixel=0
-    button.Text=text
-    button.TextColor3=TEXT
-    button.TextSize=14
-    button.Font=Enum.Font.GothamMedium
-    button.AutoButtonColor=false
-    button.ZIndex=115
-    button.Parent=parent
-    local corner=Instance.new("UICorner")
-    corner.CornerRadius=UDim.new(0,10)
-    corner.Parent=button
-    button.MouseEnter:Connect(function() if button.BackgroundColor3==BUTTON then button.BackgroundColor3=BUTTON_HOVER end end)
-    button.MouseLeave:Connect(function() if button.BackgroundColor3==BUTTON_HOVER then button.BackgroundColor3=BUTTON end end)
-    return button
+    local tabCorner = Instance.new("UICorner")
+    tabCorner.CornerRadius = UDim.new(0, 8)
+    tabCorner.Parent = tabBtn
+
+    table.insert(tabButtons, { Button = tabBtn, Data = cat })
+
+    tabBtn.MouseButton1Click:Connect(function()
+        for _, btnObj in ipairs(tabButtons) do btnObj.Button.BackgroundColor3 = BUTTON_BG end
+        tabBtn.BackgroundColor3 = ACCENT_BLUE
+        for name, pg in pairs(pages) do pg.Visible = (name == cat.id) end
+    end)
 end
 
-local function createToggleRow(parent,titleText,descText,yPosition,callback)
-    local card=Instance.new("Frame")
-    card.Size=UDim2.new(1,-10,0,52)
-    card.Position=UDim2.fromOffset(5,yPosition)
-    card.BackgroundColor3=CARD_BG
-    card.BorderSizePixel=0
-    card.ZIndex=115
-    card.Parent=parent
+local function addToggleRow(parent, titleText, yPos, callback)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, -6, 0, 42)
+    card.Position = UDim2.fromOffset(0, yPos)
+    card.BackgroundColor3 = CARD_BG
+    card.BorderSizePixel = 0
+    card.ZIndex = 116
+    card.Parent = parent
 
-    local cardCorner=Instance.new("UICorner")
-    cardCorner.CornerRadius=UDim.new(0,10)
-    cardCorner.Parent=card
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 8)
+    cardCorner.Parent = card
 
-    local titleLbl=Instance.new("TextLabel")
-    titleLbl.Size=UDim2.new(1,-75,0,22)
-    titleLbl.Position=UDim2.fromOffset(12,6)
-    titleLbl.BackgroundTransparency=1
-    titleLbl.Text=titleText
-    titleLbl.TextColor3=TEXT
-    titleLbl.TextSize=13
-    titleLbl.Font=Enum.Font.GothamBold
-    titleLbl.TextXAlignment=Enum.TextXAlignment.Left
-    titleLbl.ZIndex=116
-    titleLbl.Parent=card
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -65, 1, 0)
+    lbl.Position = UDim2.fromOffset(10, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = titleText
+    lbl.TextColor3 = TEXT_MAIN
+    lbl.TextSize = 11
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 117
+    lbl.Parent = card
 
-    local descLbl=Instance.new("TextLabel")
-    descLbl.Size=UDim2.new(1,-75,0,16)
-    descLbl.Position=UDim2.fromOffset(12,28)
-    descLbl.BackgroundTransparency=1
-    descLbl.Text=descText
-    descLbl.TextColor3=SUBTEXT
-    descLbl.TextSize=10
-    descLbl.Font=Enum.Font.GothamMedium
-    descLbl.TextXAlignment=Enum.TextXAlignment.Left
-    descLbl.ZIndex=116
-    descLbl.Parent=card
+    local sw = Instance.new("TextButton")
+    sw.Size = UDim2.fromOffset(45, 22)
+    sw.Position = UDim2.new(1, -52, 0.5, -11)
+    sw.BackgroundColor3 = BUTTON_BG
+    sw.Text = "OFF"
+    sw.TextColor3 = ACCENT_RED
+    sw.TextSize = 10
+    sw.Font = Enum.Font.GothamBold
+    sw.AutoButtonColor = false
+    sw.ZIndex = 118
+    sw.Parent = card
 
-    local switchBtn=Instance.new("TextButton")
-    switchBtn.Size=UDim2.fromOffset(55,28)
-    switchBtn.Position=UDim2.new(1,-63,0.5,-14)
-    switchBtn.BackgroundColor3=BUTTON
-    switchBtn.BorderSizePixel=0
-    switchBtn.Text="OFF"
-    switchBtn.TextColor3=RED
-    switchBtn.TextSize=10
-    switchBtn.Font=Enum.Font.GothamBold
-    switchBtn.ZIndex=117
-    switchBtn.Parent=card
+    local swCorner = Instance.new("UICorner")
+    swCorner.CornerRadius = UDim.new(0, 11)
+    swCorner.Parent = sw
 
-    local switchCorner=Instance.new("UICorner")
-    switchCorner.CornerRadius=UDim.new(0,14)
-    switchCorner.Parent=switchBtn
+    local state = false
+    local function setVisual(st)
+        state = st
+        sw.Text = state and "ON" or "OFF"
+        sw.TextColor3 = state and ACCENT_GREEN or ACCENT_RED
+        sw.BackgroundColor3 = state and ACCENT_BLUE or BUTTON_BG
+    end
 
-    local state=false
-
-    switchBtn.MouseButton1Click:Connect(function()
-        state=not state
-        if state then
-            switchBtn.Text="ON"
-            switchBtn.TextColor3=GREEN
-            switchBtn.BackgroundColor3=ON_COLOR
-        else
-            switchBtn.Text="OFF"
-            switchBtn.TextColor3=RED
-            switchBtn.BackgroundColor3=BUTTON
-        end
-        if callback then
-            task.spawn(function()
-                callback(state)
-            end)
-        end
+    sw.MouseButton1Click:Connect(function()
+        setVisual(not state)
+        showToast(titleText, state and "Status: Enabled" or "Status: Disabled", state and ACCENT_GREEN or ACCENT_RED)
+        if callback then callback(state) end
     end)
 
     return function(st)
-        state=st
-        if state then
-            switchBtn.Text="ON"
-            switchBtn.TextColor3=GREEN
-            switchBtn.BackgroundColor3=ON_COLOR
-        else
-            switchBtn.Text="OFF"
-            switchBtn.TextColor3=RED
-            switchBtn.BackgroundColor3=BUTTON
-        end
-        if callback then
-            task.spawn(function()
-                callback(state)
-            end)
-        end
+        setVisual(st)
+        if callback then callback(st) end
     end
 end
 
--- HACK PAGE
-local movementLabel=Instance.new("TextLabel")
-movementLabel.Size=UDim2.new(1,-10,0,25)
-movementLabel.Position=UDim2.fromOffset(5,0)
-movementLabel.BackgroundTransparency=1
-movementLabel.Text="⚙️ Movement"
-movementLabel.TextColor3=SUBTEXT
-movementLabel.TextSize=13
-movementLabel.Font=Enum.Font.Gotham
-movementLabel.TextXAlignment=Enum.TextXAlignment.Left
-movementLabel.ZIndex=115
-movementLabel.Parent=hackPage
+local function addSliderRow(parent, titleText, yPos, minVal, maxVal, defaultVal, callback)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, -6, 0, 48)
+    card.Position = UDim2.fromOffset(0, yPos)
+    card.BackgroundColor3 = CARD_BG
+    card.BorderSizePixel = 0
+    card.ZIndex = 116
+    card.Parent = parent
 
-local function setWallHack(state)
-    wallHack=state
-    if wallHackConnection then wallHackConnection:Disconnect() wallHackConnection=nil end
-    local character=Player.Character
-    if not state then
-        if character then for _,part in ipairs(character:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide=true end end end
-        return
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 8)
+    cardCorner.Parent = card
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -20, 0, 20)
+    lbl.Position = UDim2.fromOffset(10, 4)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = titleText .. " • " .. tostring(defaultVal)
+    lbl.TextColor3 = TEXT_MAIN
+    lbl.TextSize = 11
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 117
+    lbl.Parent = card
+
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, -24, 0, 5)
+    bar.Position = UDim2.fromOffset(12, 30)
+    bar.BackgroundColor3 = BUTTON_BG
+    bar.BorderSizePixel = 0
+    bar.ZIndex = 117
+    bar.Parent = card
+
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(1, 0)
+    barCorner.Parent = bar
+
+    local initRel = math.clamp((defaultVal - minVal) / (maxVal - minVal), 0, 1)
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(initRel, 0, 1, 0)
+    fill.BackgroundColor3 = ACCENT_BLUE
+    fill.BorderSizePixel = 0
+    fill.ZIndex = 118
+    fill.Parent = bar
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.fromOffset(13, 13)
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.Position = UDim2.new(1, 0, 0.5, 0)
+    knob.BackgroundColor3 = TEXT_MAIN
+    knob.BorderSizePixel = 0
+    knob.ZIndex = 119
+    knob.Parent = fill
+
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = knob
+
+    local knobStroke = Instance.new("UIStroke")
+    knobStroke.Color = ACCENT_BLUE
+    knobStroke.Thickness = 2
+    knobStroke.Parent = knob
+
+    local dragging = false
+    local function updateSlider(input)
+        local barAbsPos = bar.AbsolutePosition.X
+        local barAbsSize = bar.AbsoluteSize.X
+        if barAbsSize <= 0 then return end
+        local relX = math.clamp((input.Position.X - barAbsPos) / barAbsSize, 0, 1)
+        fill.Size = UDim2.new(relX, 0, 1, 0)
+        local val = math.floor(minVal + (maxVal - minVal) * relX)
+        lbl.Text = titleText .. " • " .. tostring(val)
+        if callback then callback(val) end
     end
-    wallHackConnection=RunService.Heartbeat:Connect(function()
-        local currentCharacter=Player.Character
-        if not currentCharacter then return end
-        for _,part in ipairs(currentCharacter:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide=false end end
+
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            updateSlider(input)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateSlider(input)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
     end)
 end
 
-createToggleRow(hackPage, "🧱 Wall Hack", "Menembus tembok dan objek", 28, function(isOn)
-    setWallHack(isOn)
+-- ============================================================
+-- 1. TAB HACK (LOGIKA ASLI)
+-- ============================================================
+local wallHackConn = nil
+addToggleRow(pages.Hack, "🧱 Wall Hack", 0, function(state)
+    if wallHackConn then wallHackConn:Disconnect() wallHackConn = nil end
+    if state then
+        wallHackConn = RunService.Heartbeat:Connect(function()
+            local char = Player.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+            end
+        end)
+    else
+        local char = Player.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = true end
+            end
+        end
+    end
 end)
 
--- FLY MECHANICS IMPLEMENTATION
+local isFlying = false
+local flySpeed = 50
+local linearVelocity, alignOrientation, attachment = nil, nil, nil
+local flyConn = nil
+
 local function stopFly()
     isFlying = false
-    if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
-    if linearVelocity then linearVelocity:Destroy(); linearVelocity = nil end
-    if alignOrientation then alignOrientation:Destroy(); alignOrientation = nil end
-    if attachment then attachment:Destroy(); attachment = nil end
+    if flyConn then flyConn:Disconnect() flyConn = nil end
+    if linearVelocity then linearVelocity:Destroy() linearVelocity = nil end
+    if alignOrientation then alignOrientation:Destroy() alignOrientation = nil end
+    if attachment then attachment:Destroy() attachment = nil end
     local hum = getHumanoid()
     if hum then hum.PlatformStand = false end
 end
@@ -474,13 +575,13 @@ local function startFly()
     hum.PlatformStand = true
 
     attachment = Instance.new("Attachment")
-    attachment.Name = "FlyAttachment"
+    attachment.Name = "STRN_FlyAttachment"
     attachment.Parent = root
 
     linearVelocity = Instance.new("LinearVelocity")
     linearVelocity.Attachment0 = attachment
     linearVelocity.MaxForce = math.huge
-    linearVelocity.VectorVelocity = Vector3.new(0, 0, 0)
+    linearVelocity.VectorVelocity = Vector3.zero
     linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
     linearVelocity.Parent = root
 
@@ -492,22 +593,21 @@ local function startFly()
     alignOrientation.CFrame = root.CFrame
     alignOrientation.Parent = root
 
-    flyConnection = RunService.RenderStepped:Connect(function()
+    flyConn = RunService.RenderStepped:Connect(function()
         if not isFlying or not getRoot() or not getHumanoid() then
             stopFly()
             return
         end
-
         hum.PlatformStand = true
         local moveDir = hum.MoveDirection
-        local cameraCFrame = Camera.CFrame
-        local flyVector = Vector3.new(0, 0, 0)
+        local cameraCF = Camera.CFrame
+        local flyVector = Vector3.zero
 
         if moveDir.Magnitude > 0 then
-            local cameraForward = cameraCFrame.LookVector
-            local cameraRight = cameraCFrame.RightVector
-            local forwardDot = moveDir:Dot(cameraCFrame.LookVector * Vector3.new(1, 0, 1).Unit)
-            local rightDot = moveDir:Dot(cameraCFrame.RightVector * Vector3.new(1, 0, 1).Unit)
+            local cameraForward = cameraCF.LookVector
+            local cameraRight = cameraCF.RightVector
+            local forwardDot = moveDir:Dot(cameraCF.LookVector * Vector3.new(1, 0, 1).Unit)
+            local rightDot = moveDir:Dot(cameraCF.RightVector * Vector3.new(1, 0, 1).Unit)
             flyVector = (cameraForward * forwardDot + cameraRight * rightDot).Unit * flySpeed
         end
 
@@ -518,1151 +618,543 @@ local function startFly()
         end
 
         linearVelocity.VectorVelocity = flyVector
-        alignOrientation.CFrame = cameraCFrame
+        alignOrientation.CFrame = cameraCF
     end)
 end
 
-local updateFlyToggle = createToggleRow(hackPage, "🕊️ Fly Mode", "Terbang bebas [E] (WASD + Camera)", 88, function(isOn)
-    if isOn then startFly() else stopFly() end
+local updateFlyToggle = addToggleRow(pages.Hack, "🕊️ Fly Mode [E]", 48, function(state)
+    if state then startFly() else stopFly() end
 end)
 
--- FLY SPEED SLIDER
-local flySpeedLabel=Instance.new("TextLabel")
-flySpeedLabel.Size=UDim2.new(1,-10,0,25)
-flySpeedLabel.Position=UDim2.fromOffset(5,148)
-flySpeedLabel.BackgroundTransparency=1
-flySpeedLabel.Text="🕊️ Fly Speed • 50"
-flySpeedLabel.TextColor3=TEXT
-flySpeedLabel.TextSize=15
-flySpeedLabel.Font=Enum.Font.GothamMedium
-flySpeedLabel.TextXAlignment=Enum.TextXAlignment.Left
-flySpeedLabel.ZIndex=115
-flySpeedLabel.Parent=hackPage
-
-local flySlider=Instance.new("Frame")
-flySlider.Size=UDim2.new(1,-10,0,35)
-flySlider.Position=UDim2.fromOffset(5,175)
-flySlider.BackgroundColor3=BUTTON
-flySlider.BorderSizePixel=0
-flySlider.ZIndex=115
-flySlider.Parent=hackPage
-
-local flySliderCorner=Instance.new("UICorner")
-flySliderCorner.CornerRadius=UDim.new(0,10)
-flySliderCorner.Parent=flySlider
-
-local flyBar=Instance.new("Frame")
-flyBar.Size=UDim2.new(1,-30,0,5)
-flyBar.Position=UDim2.new(0,15,0.5,-2)
-flyBar.BackgroundColor3=Color3.fromRGB(90,90,100)
-flyBar.BorderSizePixel=0
-flyBar.ZIndex=116
-flyBar.Parent=flySlider
-
-local flyBarCorner=Instance.new("UICorner")
-flyBarCorner.CornerRadius=UDim.new(1,0)
-flyBarCorner.Parent=flyBar
-
-local flyKnob=Instance.new("TextButton")
-flyKnob.Size=UDim2.fromOffset(18,18)
-flyKnob.AnchorPoint=Vector2.new(0.5,0.5)
-flyKnob.Position=UDim2.new(0.285,15,0.5,0)
-flyKnob.BackgroundColor3=Color3.fromRGB(255,255,255)
-flyKnob.BorderSizePixel=0
-flyKnob.Text=""
-flyKnob.AutoButtonColor=false
-flyKnob.ZIndex=118
-flyKnob.Parent=flySlider
-
-local flyKnobCorner=Instance.new("UICorner")
-flyKnobCorner.CornerRadius=UDim.new(1,0)
-flyKnobCorner.Parent=flyKnob
-
-local function updateFlySpeedInput(input)
-    local width=flyBar.AbsoluteSize.X
-    if width<=0 then return end
-    local x=math.clamp(input.Position.X-flyBar.AbsolutePosition.X,0,width)
-    local percent=x/width
-    flySpeed=math.floor(10+(percent*140))
-    flyKnob.Position=UDim2.new(0,15+x,0.5,0)
-    flySpeedLabel.Text="🕊️ Fly Speed • "..tostring(flySpeed)
-end
-
-local isDraggingFlySlider = false
-flySlider.InputBegan:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then isDraggingFlySlider=true; updateFlySpeedInput(input) end
-end)
-flyKnob.InputBegan:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then isDraggingFlySlider=true; updateFlySpeedInput(input) end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if isDraggingFlySlider and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then updateFlySpeedInput(input) end
-end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then isDraggingFlySlider=false end
-end)
-
--- ORIGINAL WALK SPEED SLIDER
-local speedLabel=Instance.new("TextLabel")
-speedLabel.Size=UDim2.new(1,-10,0,25)
-speedLabel.Position=UDim2.fromOffset(5,218)
-speedLabel.BackgroundTransparency=1
-speedLabel.Text="💨 Speed • Normal • 0%"
-speedLabel.TextColor3=TEXT
-speedLabel.TextSize=15
-speedLabel.Font=Enum.Font.GothamMedium
-speedLabel.TextXAlignment=Enum.TextXAlignment.Left
-speedLabel.ZIndex=115
-speedLabel.Parent=hackPage
-local slider=Instance.new("Frame")
-slider.Size=UDim2.new(1,-10,0,35)
-slider.Position=UDim2.fromOffset(5,245)
-slider.BackgroundColor3=BUTTON
-slider.BorderSizePixel=0
-slider.ZIndex=115
-slider.Parent=hackPage
-local sliderCorner=Instance.new("UICorner")
-sliderCorner.CornerRadius=UDim.new(0,10)
-sliderCorner.Parent=slider
-local bar=Instance.new("Frame")
-bar.Size=UDim2.new(1,-30,0,5)
-bar.Position=UDim2.new(0,15,0.5,-2)
-bar.BackgroundColor3=Color3.fromRGB(90,90,100)
-bar.BorderSizePixel=0
-bar.ZIndex=116
-bar.Parent=slider
-local barCorner=Instance.new("UICorner")
-barCorner.CornerRadius=UDim.new(1,0)
-barCorner.Parent=bar
-local knob=Instance.new("TextButton")
-knob.Size=UDim2.fromOffset(18,18)
-knob.AnchorPoint=Vector2.new(0.5,0.5)
-knob.BackgroundColor3=Color3.fromRGB(255,255,255)
-knob.BorderSizePixel=0
-knob.Text=""
-knob.AutoButtonColor=false
-knob.ZIndex=118
-knob.Parent=slider
-local knobCorner=Instance.new("UICorner")
-knobCorner.CornerRadius=UDim.new(1,0)
-knobCorner.Parent=knob
-
-local function setSpeed(index)
-    index=math.clamp(math.floor(index+0.5),1,#speedLevels)
-    selectedSpeed=index
-    local data=speedLevels[index]
-    local humanoid=getHumanoid()
-    if humanoid then humanoid.WalkSpeed=data.speed end
-    local barWidth=bar.AbsoluteSize.X
-    if barWidth>0 then
-        local x=barWidth*(data.percent/100)
-        knob.Position=UDim2.new(0,15+x,0.5,0)
-    end
-    speedLabel.Text=data.percent==0 and "💨 Speed • Normal • 0%" or ("💨 Speed • "..data.percent.."%")
-end
-
-local function selectSpeed(input)
-    local width=bar.AbsoluteSize.X
-    if width<=0 then return end
-    local x=input.Position.X-bar.AbsolutePosition.X
-    x=math.clamp(x,0,width)
-    local percent=(x/width)*100
-    local closest=1
-    local distance=math.huge
-    for i,data in ipairs(speedLevels) do
-        local d=math.abs(percent-data.percent)
-        if d<distance then distance=d; closest=i end
-    end
-    setSpeed(closest)
-end
-
-slider.InputBegan:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then selectSpeed(input) end
-end)
-knob.InputBegan:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then selectSpeed(input) end
-end)
-
-local function setInfiniteJump(state)
-    infiniteJump=state
-    if jumpConnection then jumpConnection:Disconnect() jumpConnection=nil end
-    if state then
-        jumpConnection=UserInputService.JumpRequest:Connect(function()
-            local humanoid=getHumanoid()
-            if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
-        end)
-    end
-end
-
-createToggleRow(hackPage, "🦘 Infinite Jump", "Lompat tanpa batas di udara", 288, function(isOn)
-    setInfiniteJump(isOn)
-end)
-
-local function setAntiAFK(state)
-    antiAFK=state
-    if antiAFKConnection then antiAFKConnection:Disconnect() antiAFKConnection=nil end
-    if state then
-        antiAFKConnection=RunService.Heartbeat:Connect(function()
-            local root=getRoot()
-            if root then
-                root.Velocity=Vector3.new(0,0,0)
-                root.CFrame=root.CFrame+Vector3.new(0,0,0.01)
-                root.CFrame=root.CFrame-Vector3.new(0,0,0.01)
-            end
-        end)
-    end
-end
-
-createToggleRow(hackPage, "Bedtime Anti-AFK", "Mencegah terputus dari server", 348, function(isOn)
-    setAntiAFK(isOn)
-end)
-
--- GLOBAL KEYBIND EVENT (FLY TOGGLE)
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
-    if input.KeyCode == flyKeybind then
+    if input.KeyCode == Enum.KeyCode.E then
         isFlying = not isFlying
         updateFlyToggle(isFlying)
     end
 end)
 
--- PLAYER PAGE
-local playerTitle=Instance.new("TextLabel")
-playerTitle.Size=UDim2.new(1,-100,0,30)
-playerTitle.Position=UDim2.fromOffset(5,0)
-playerTitle.BackgroundTransparency=1
-playerTitle.Text="👥 Players"
-playerTitle.TextColor3=TEXT
-playerTitle.TextSize=18
-playerTitle.Font=Enum.Font.GothamBold
-playerTitle.TextXAlignment=Enum.TextXAlignment.Left
-playerTitle.ZIndex=115
-playerTitle.Parent=playerPage
+addSliderRow(pages.Hack, "🕊️ Fly Speed", 96, 10, 200, 50, function(val) flySpeed = val end)
+addSliderRow(pages.Hack, "💨 Walk Speed", 150, 16, 250, 16, function(val)
+    local hum = getHumanoid()
+    if hum then hum.WalkSpeed = val end
+end)
 
-local refreshButton=Instance.new("TextButton")
-refreshButton.Size=UDim2.fromOffset(85,32)
-refreshButton.Position=UDim2.new(1,-90,0,0)
-refreshButton.BackgroundColor3=BUTTON
-refreshButton.BorderSizePixel=0
-refreshButton.Text="🔄 Refresh"
-refreshButton.TextColor3=TEXT
-refreshButton.TextSize=13
-refreshButton.Font=Enum.Font.GothamBold
-refreshButton.AutoButtonColor=false
-refreshButton.ZIndex=120
-refreshButton.Parent=playerPage
-local refreshCorner=Instance.new("UICorner")
-refreshCorner.CornerRadius=UDim.new(0,8)
-refreshCorner.Parent=refreshButton
+local infJumpConn = nil
+addToggleRow(pages.Hack, "🦘 Infinite Jump", 204, function(state)
+    if infJumpConn then infJumpConn:Disconnect() infJumpConn = nil end
+    if state then
+        infJumpConn = UserInputService.JumpRequest:Connect(function()
+            local hum = getHumanoid()
+            if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+        end)
+    end
+end)
 
-local controlArea=Instance.new("Frame")
-controlArea.Name="ControlArea"
-controlArea.Size=UDim2.new(1,-10,0,50)
-controlArea.Position=UDim2.fromOffset(5,40)
-controlArea.BackgroundTransparency=1
-controlArea.ZIndex=130
-controlArea.Parent=playerPage
+local antiAFKConn = nil
+addToggleRow(pages.Hack, "🛌 Bedtime Anti-AFK", 252, function(state)
+    if antiAFKConn then antiAFKConn:Disconnect() antiAFKConn = nil end
+    if state then
+        antiAFKConn = RunService.Heartbeat:Connect(function()
+            local root = getRoot()
+            if root then
+                root.Velocity = Vector3.zero
+                root.CFrame = root.CFrame + Vector3.new(0, 0, 0.01)
+                root.CFrame = root.CFrame - Vector3.new(0, 0, 0.01)
+            end
+        end)
+    end
+end)
 
-local stopSpectateButton=createButton(controlArea,"Stop Spectating",0,125)
-stopSpectateButton.Position=UDim2.fromOffset(0,3)
-stopSpectateButton.ZIndex=135
-stopSpectateButton.Visible=false
-local stopRideButton=createButton(controlArea,"Stop Ride",0,115)
-stopRideButton.Position=UDim2.fromOffset(135,3)
-stopRideButton.BackgroundColor3=RIDE_SELECTED
-stopRideButton.ZIndex=135
-stopRideButton.Visible=false
+pages.Hack.CanvasSize = UDim2.new(0, 0, 0, 310)
 
-local playerList=Instance.new("Frame")
-playerList.Name="PlayerList"
-playerList.Position=UDim2.fromOffset(5,95)
-playerList.Size=UDim2.new(1,-10,0,0)
-playerList.BackgroundTransparency=1
-playerList.ZIndex=115
-playerList.Parent=playerPage
-local playerLayout=Instance.new("UIListLayout")
-playerLayout.Padding=UDim.new(0,7)
-playerLayout.SortOrder=Enum.SortOrder.Name
-playerLayout.Parent=playerList
+-- ============================================================
+-- 2. TAB PLAYER
+-- ============================================================
+local playerScroll = pages.Player
 
-local function updatePlayerPageCanvas()
-    task.wait()
-    local controlHeight=controlArea.AbsoluteSize.Y
-    local listY=40+controlHeight+5
-    local listHeight=playerList.AbsoluteSize.Y
-    playerList.Position=UDim2.fromOffset(5,listY)
-    local totalHeight=listY+listHeight+20
-    playerPage.CanvasSize=UDim2.new(0,0,0,math.max(totalHeight,100))
-end
+local spectatingPlayer = nil
+local spectatorConn = nil
+local ridingPlayer = nil
+local rideConn = nil
+local RIDE_OFFSET = Vector3.new(0, 4, 0)
 
 local function stopSpectating()
-    spectatingPlayer=nil
-    spectateTargetName=nil
-    if spectatorConnection then spectatorConnection:Disconnect() spectatorConnection=nil end
-    if selectedSpectButton and selectedSpectButton.Parent then selectedSpectButton.BackgroundColor3=BUTTON_HOVER end
-    selectedSpectButton=nil
-    Camera.CameraType=Enum.CameraType.Custom
-    local humanoid=getHumanoid()
-    if humanoid then Camera.CameraSubject=humanoid end
-    stopSpectateButton.Visible=false
-    refreshPlayerList()
+    spectatingPlayer = nil
+    if spectatorConn then spectatorConn:Disconnect() spectatorConn = nil end
+    Camera.CameraType = Enum.CameraType.Custom
+    local hum = getHumanoid()
+    if hum then Camera.CameraSubject = hum end
 end
-
-local function spectatePlayer(target,spectButton)
-    if not target or target==Player then return end
-    local character=target.Character
-    local humanoid=getHumanoid(character)
-    if not character or not humanoid then return end
-    if selectedSpectButton and selectedSpectButton~=spectButton and selectedSpectButton.Parent then selectedSpectButton.BackgroundColor3=BUTTON_HOVER end
-    spectatingPlayer=target
-    spectateTargetName=target.Name
-    selectedSpectButton=spectButton
-    spectButton.BackgroundColor3=SPECT_SELECTED
-    Camera.CameraType=Enum.CameraType.Custom
-    Camera.CameraSubject=humanoid
-    stopSpectateButton.Visible=true
-    if spectatorConnection then spectatorConnection:Disconnect() end
-    spectatorConnection=RunService.RenderStepped:Connect(function()
-        if not spectatingPlayer then return end
-        local currentCharacter=spectatingPlayer.Character
-        local currentHumanoid=getHumanoid(currentCharacter)
-        if currentHumanoid then
-            if Camera.CameraSubject~=currentHumanoid then Camera.CameraSubject=currentHumanoid end
-        else stopSpectating() end
-    end)
-    refreshPlayerList()
-end
-stopSpectateButton.MouseButton1Click:Connect(stopSpectating)
 
 local function stopRide()
-    ridingPlayer=nil
-    rideTargetName=nil
-    if rideConnection then
-        rideConnection:Disconnect()
-        rideConnection=nil
-    end
-    if selectedRideButton and selectedRideButton.Parent then
-        selectedRideButton.BackgroundColor3=BUTTON_HOVER
-        selectedRideButton.Text="RIDE"
-    end
-    selectedRideButton=nil
-    stopRideButton.Visible=false
-    refreshPlayerList()
-end
-
-local function ridePlayer(target,rideButton)
-    if not target or target==Player then return end
-    local targetCharacter=target.Character
-    local targetRoot=getRoot(targetCharacter)
-    if not targetRoot then return end
-    if ridingPlayer==target then
-        stopRide()
-        return
-    end
-    if selectedRideButton and selectedRideButton~=rideButton and selectedRideButton.Parent then
-        selectedRideButton.BackgroundColor3=BUTTON_HOVER
-        selectedRideButton.Text="RIDE"
-    end
-    ridingPlayer=target
-    rideTargetName=target.Name
-    selectedRideButton=rideButton
-    rideButton.BackgroundColor3=RIDE_SELECTED
-    rideButton.Text="RIDING"
-    stopRideButton.Visible=true
-    if rideConnection then
-        rideConnection:Disconnect()
-        rideConnection=nil
-    end
-    rideConnection=RunService.RenderStepped:Connect(function()
-        if not ridingPlayer then return end
-        local targetCharacter=ridingPlayer.Character
-        local targetRoot=getRoot(targetCharacter)
-        local myCharacter=Player.Character
-        local myRoot=getRoot(myCharacter)
-        if not targetRoot or not myRoot then return end
-        local newPosition=targetRoot.Position+RIDE_OFFSET
-        myRoot.CFrame=CFrame.new(newPosition)
-        myRoot.AssemblyLinearVelocity=Vector3.zero
-        myRoot.AssemblyAngularVelocity=Vector3.zero
-    end)
-    refreshPlayerList()
-end
-stopRideButton.MouseButton1Click:Connect(stopRide)
-
-local function teleportToPlayer(target)
-    if not target or target==Player then return false end
-    local targetRoot=getRoot(target.Character)
-    local root=getRoot(Player.Character)
-    if not targetRoot or not root then return false end
-    root.CFrame=targetRoot.CFrame*CFrame.new(0,0,3)
-    return true
-end
-
-local function createPlayerRow(target)
-    local row=Instance.new("Frame")
-    row.Name=target.Name
-    row.Size=UDim2.new(1,0,0,62)
-    row.BackgroundColor3=BUTTON
-    row.BorderSizePixel=0
-    row.ZIndex=116
-    row.Parent=playerList
-    local corner=Instance.new("UICorner")
-    corner.CornerRadius=UDim.new(0,9)
-    corner.Parent=row
-
-    local avatar=Instance.new("ImageLabel")
-    avatar.Name="Avatar"
-    avatar.Size=UDim2.fromOffset(42,42)
-    avatar.Position=UDim2.fromOffset(7,10)
-    avatar.BackgroundColor3=BUTTON_HOVER
-    avatar.BorderSizePixel=0
-    avatar.Image=""
-    avatar.ScaleType=Enum.ScaleType.Crop
-    avatar.ZIndex=117
-    avatar.Parent=row
-    local avatarCorner=Instance.new("UICorner")
-    avatarCorner.CornerRadius=UDim.new(1,0)
-    avatarCorner.Parent=avatar
-    task.spawn(function()
-        local success,image=pcall(function() return Players:GetUserThumbnailAsync(target.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size100x100) end)
-        if success and image and avatar.Parent then avatar.Image=image end
-    end)
-
-    local nameContainer=Instance.new("Frame")
-    nameContainer.Size=UDim2.new(1,-185,1,-8)
-    nameContainer.Position=UDim2.fromOffset(58,4)
-    nameContainer.BackgroundTransparency=1
-    nameContainer.ZIndex=117
-    nameContainer.Parent=row
-    local nameLabel=Instance.new("TextLabel")
-    nameLabel.Size=UDim2.new(1,0,0,25)
-    nameLabel.Position=UDim2.fromOffset(0,2)
-    nameLabel.BackgroundTransparency=1
-    nameLabel.Text=target.DisplayName
-    nameLabel.TextColor3=TEXT
-    nameLabel.TextSize=12
-    nameLabel.Font=Enum.Font.GothamBold
-    nameLabel.TextXAlignment=Enum.TextXAlignment.Left
-    nameLabel.TextTruncate=Enum.TextTruncate.AtEnd
-    nameLabel.ZIndex=118
-    nameLabel.Parent=nameContainer
-    local usernameLabel=Instance.new("TextLabel")
-    usernameLabel.Size=UDim2.new(1,0,0,22)
-    usernameLabel.Position=UDim2.fromOffset(0,25)
-    usernameLabel.BackgroundTransparency=1
-    usernameLabel.Text="@"..target.Name
-    usernameLabel.TextColor3=SUBTEXT
-    usernameLabel.TextSize=10
-    usernameLabel.Font=Enum.Font.Gotham
-    usernameLabel.TextXAlignment=Enum.TextXAlignment.Left
-    usernameLabel.TextTruncate=Enum.TextTruncate.AtEnd
-    usernameLabel.ZIndex=118
-    usernameLabel.Parent=nameContainer
-
-    local spectButton=Instance.new("TextButton")
-    spectButton.Name="SpectButton"
-    spectButton.Size=UDim2.fromOffset(48,34)
-    spectButton.Position=UDim2.new(1,-162,0.5,-17)
-    spectButton.BackgroundColor3=BUTTON_HOVER
-    spectButton.BorderSizePixel=0
-    spectButton.Text="SPECT"
-    spectButton.TextColor3=TEXT
-    spectButton.TextSize=9
-    spectButton.Font=Enum.Font.GothamBold
-    spectButton.AutoButtonColor=false
-    spectButton.ZIndex=118
-    spectButton.Parent=row
-    local spectCorner=Instance.new("UICorner")
-    spectCorner.CornerRadius=UDim.new(0,8)
-    spectCorner.Parent=spectButton
-
-    local rideButton=Instance.new("TextButton")
-    rideButton.Name="RideButton"
-    rideButton.Size=UDim2.fromOffset(48,34)
-    rideButton.Position=UDim2.new(1,-110,0.5,-17)
-    rideButton.BackgroundColor3=BUTTON_HOVER
-    rideButton.BorderSizePixel=0
-    rideButton.Text="RIDE"
-    rideButton.TextColor3=TEXT
-    rideButton.TextSize=10
-    rideButton.Font=Enum.Font.GothamBold
-    rideButton.AutoButtonColor=false
-    rideButton.ZIndex=118
-    rideButton.Parent=row
-    local rideCorner=Instance.new("UICorner")
-    rideCorner.CornerRadius=UDim.new(0,8)
-    rideCorner.Parent=rideButton
-
-    local tpButton=Instance.new("TextButton")
-    tpButton.Name="TpButton"
-    tpButton.Size=UDim2.fromOffset(45,34)
-    tpButton.Position=UDim2.new(1,-57,0.5,-17)
-    tpButton.BackgroundColor3=ON_COLOR
-    tpButton.BorderSizePixel=0
-    tpButton.Text="TP"
-    tpButton.TextColor3=TEXT
-    tpButton.TextSize=12
-    tpButton.Font=Enum.Font.GothamBold
-    tpButton.AutoButtonColor=false
-    tpButton.ZIndex=118
-    tpButton.Parent=row
-    local tpCorner=Instance.new("UICorner")
-    tpCorner.CornerRadius=UDim.new(0,8)
-    tpCorner.Parent=tpButton
-
-    spectButton.MouseEnter:Connect(function() if spectatingPlayer~=target then spectButton.BackgroundColor3=BUTTON end end)
-    spectButton.MouseLeave:Connect(function() if spectatingPlayer~=target then spectButton.BackgroundColor3=BUTTON_HOVER end end)
-    rideButton.MouseEnter:Connect(function() if ridingPlayer~=target then rideButton.BackgroundColor3=BUTTON end end)
-    rideButton.MouseLeave:Connect(function() if ridingPlayer~=target then rideButton.BackgroundColor3=BUTTON_HOVER end end)
-
-    spectButton.MouseButton1Click:Connect(function()
-        if spectatingPlayer==target then stopSpectating() return end
-        spectatePlayer(target,spectButton)
-    end)
-    rideButton.MouseButton1Click:Connect(function()
-        if ridingPlayer==target then stopRide() return end
-        ridePlayer(target,rideButton)
-    end)
-    tpButton.MouseButton1Click:Connect(function() teleportToPlayer(target) end)
-
-    return row
+    ridingPlayer = nil
+    if rideConn then rideConn:Disconnect() rideConn = nil end
 end
 
 local function refreshPlayerList()
-    selectedSpectButton=nil
-    selectedRideButton=nil
-    for _,child in ipairs(playerList:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
-    local playerCount=0
-    for _,target in ipairs(Players:GetPlayers()) do
-        if target~=Player then
-            local row=createPlayerRow(target)
-            playerCount+=1
-            if rideTargetName and target.Name==rideTargetName then
-                local rideBtn=row:FindFirstChild("RideButton")
-                if rideBtn then rideBtn.BackgroundColor3=RIDE_SELECTED; rideBtn.Text="RIDING"; selectedRideButton=rideBtn; ridingPlayer=target; stopRideButton.Visible=true end
-            end
-            if spectateTargetName and target.Name==spectateTargetName then
-                local spectBtn=row:FindFirstChild("SpectButton")
-                if spectBtn then spectBtn.BackgroundColor3=SPECT_SELECTED; selectedSpectButton=spectBtn; spectatingPlayer=target; stopSpectateButton.Visible=true
-                local humanoid=getHumanoid(target.Character)
-                if humanoid then Camera.CameraSubject=humanoid end end
-            end
+    for _, child in ipairs(playerScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    local plist = Players:GetPlayers()
+    local idx = 0
+    for _, targetP in ipairs(plist) do
+        if targetP ~= Player then
+            idx = idx + 1
+            local pCard = Instance.new("Frame")
+            pCard.Size = UDim2.new(1, -6, 0, 58)
+            pCard.Position = UDim2.fromOffset(0, (idx - 1) * 64)
+            pCard.BackgroundColor3 = CARD_BG
+            pCard.BorderSizePixel = 0
+            pCard.ZIndex = 116
+            pCard.Parent = playerScroll
+
+            local pCorner = Instance.new("UICorner")
+            pCorner.CornerRadius = UDim.new(0, 8)
+            pCorner.Parent = pCard
+
+            local ava = Instance.new("ImageLabel")
+            ava.Size = UDim2.fromOffset(36, 36)
+            ava.Position = UDim2.fromOffset(8, 11)
+            ava.BackgroundColor3 = BUTTON_BG
+            ava.BorderSizePixel = 0
+            ava.Image = "rbxassetid://6031082533"
+            ava.ZIndex = 117
+            ava.Parent = pCard
+
+            local avaCorner = Instance.new("UICorner")
+            avaCorner.CornerRadius = UDim.new(1, 0)
+            avaCorner.Parent = ava
+
+            task.spawn(function()
+                local content, isReady = Players:GetUserThumbnailAsync(targetP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                if isReady and ava and ava.Parent then ava.Image = content end
+            end)
+
+            local nameLbl = Instance.new("TextLabel")
+            nameLbl.Size = UDim2.new(1, -165, 0, 18)
+            nameLbl.Position = UDim2.fromOffset(50, 10)
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.Text = targetP.DisplayName
+            nameLbl.TextColor3 = TEXT_MAIN
+            nameLbl.TextSize = 11
+            nameLbl.Font = Enum.Font.GothamBold
+            nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+            nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            nameLbl.ZIndex = 117
+            nameLbl.Parent = pCard
+
+            local userLbl = Instance.new("TextLabel")
+            userLbl.Size = UDim2.new(1, -165, 0, 16)
+            userLbl.Position = UDim2.fromOffset(50, 28)
+            userLbl.BackgroundTransparency = 1
+            userLbl.Text = "@" .. targetP.Name
+            userLbl.TextColor3 = TEXT_SUB
+            userLbl.TextSize = 9
+            userLbl.Font = Enum.Font.Gotham
+            userLbl.TextXAlignment = Enum.TextXAlignment.Left
+            userLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            userLbl.ZIndex = 117
+            userLbl.Parent = pCard
+
+            -- SPECTATE
+            local spectBtn = Instance.new("TextButton")
+            spectBtn.Size = UDim2.fromOffset(36, 26)
+            spectBtn.Position = UDim2.new(1, -122, 0.5, -13)
+            spectBtn.BackgroundColor3 = (spectatingPlayer == targetP) and ACCENT_RED or SPECT_COLOR
+            spectBtn.Text = (spectatingPlayer == targetP) and "STOP" or "SPECT"
+            spectBtn.TextColor3 = TEXT_MAIN
+            spectBtn.TextSize = 8
+            spectBtn.Font = Enum.Font.GothamBold
+            spectBtn.AutoButtonColor = false
+            spectBtn.ZIndex = 118
+            spectBtn.Parent = pCard
+
+            local sCorner = Instance.new("UICorner")
+            sCorner.CornerRadius = UDim.new(0, 6)
+            sCorner.Parent = spectBtn
+
+            spectBtn.MouseButton1Click:Connect(function()
+                if spectatingPlayer == targetP then
+                    stopSpectating()
+                    showToast("Spectate", "Kamera kembali normal", ACCENT_BLUE)
+                else
+                    stopSpectating()
+                    spectatingPlayer = targetP
+                    spectatorConn = RunService.RenderStepped:Connect(function()
+                        if spectatingPlayer and spectatingPlayer.Character then
+                            local hum = getHumanoid(spectatingPlayer.Character)
+                            if hum then Camera.CameraSubject = hum else stopSpectating() end
+                        else stopSpectating() end
+                    end)
+                    showToast("Spectate Target", "Mengamati " .. targetP.DisplayName, ACCENT_GREEN)
+                end
+                refreshPlayerList()
+            end)
+
+            -- RIDE
+            local rideBtn = Instance.new("TextButton")
+            rideBtn.Size = UDim2.fromOffset(36, 26)
+            rideBtn.Position = UDim2.new(1, -82, 0.5, -13)
+            rideBtn.BackgroundColor3 = (ridingPlayer == targetP) and ACCENT_RED or RIDE_COLOR
+            rideBtn.Text = (ridingPlayer == targetP) and "STOP" or "RIDE"
+            rideBtn.TextColor3 = TEXT_MAIN
+            rideBtn.TextSize = 8
+            rideBtn.Font = Enum.Font.GothamBold
+            rideBtn.AutoButtonColor = false
+            rideBtn.ZIndex = 118
+            rideBtn.Parent = pCard
+
+            local rCorner = Instance.new("UICorner")
+            rCorner.CornerRadius = UDim.new(0, 6)
+            rCorner.Parent = rideBtn
+
+            rideBtn.MouseButton1Click:Connect(function()
+                if ridingPlayer == targetP then
+                    stopRide()
+                    showToast("Ride Player", "Berhenti menunggangi", ACCENT_BLUE)
+                else
+                    stopRide()
+                    ridingPlayer = targetP
+                    rideConn = RunService.RenderStepped:Connect(function()
+                        if ridingPlayer and ridingPlayer.Character then
+                            local tRoot = getRoot(ridingPlayer.Character)
+                            local myRoot = getRoot()
+                            if tRoot and myRoot then
+                                myRoot.CFrame = CFrame.new(tRoot.Position + RIDE_OFFSET)
+                                myRoot.AssemblyLinearVelocity = Vector3.zero
+                            else stopRide() end
+                        else stopRide() end
+                    end)
+                    showToast("Ride Player", "Menunggangi " .. targetP.DisplayName, ACCENT_GREEN)
+                end
+                refreshPlayerList()
+            end)
+
+            -- TP
+            local tpBtn = Instance.new("TextButton")
+            tpBtn.Size = UDim2.fromOffset(36, 26)
+            tpBtn.Position = UDim2.new(1, -42, 0.5, -13)
+            tpBtn.BackgroundColor3 = ACCENT_BLUE
+            tpBtn.Text = "TP"
+            tpBtn.TextColor3 = TEXT_MAIN
+            tpBtn.TextSize = 8
+            tpBtn.Font = Enum.Font.GothamBold
+            tpBtn.AutoButtonColor = false
+            tpBtn.ZIndex = 118
+            tpBtn.Parent = pCard
+
+            local tCorner = Instance.new("UICorner")
+            tCorner.CornerRadius = UDim.new(0, 6)
+            tCorner.Parent = tpBtn
+
+            tpBtn.MouseButton1Click:Connect(function()
+                local root = getRoot()
+                local tRoot = getRoot(targetP.Character)
+                if root and tRoot then
+                    root.CFrame = tRoot.CFrame * CFrame.new(0, 0, -3)
+                    showToast("Teleport Player", "Teleport ke " .. targetP.DisplayName, ACCENT_BLUE)
+                end
+            end)
         end
     end
-    if playerCount==0 then
-        local emptyLabel=Instance.new("TextLabel")
-        emptyLabel.Size=UDim2.new(1,0,0,40)
-        emptyLabel.BackgroundTransparency=1
-        emptyLabel.Text="Tidak ada player lain di server."
-        emptyLabel.TextColor3=SUBTEXT
-        emptyLabel.TextSize=13
-        emptyLabel.Font=Enum.Font.Gotham
-        emptyLabel.ZIndex=116
-        emptyLabel.Parent=playerList
-    end
-    task.wait()
-    local contentHeight=math.max(playerLayout.AbsoluteContentSize.Y,50)
-    playerList.Size=UDim2.new(1,-10,0,contentHeight)
-    updatePlayerPageCanvas()
+    playerScroll.CanvasSize = UDim2.new(0, 0, 0, idx * 64)
 end
 
-refreshButton.MouseButton1Click:Connect(refreshPlayerList)
-Players.PlayerAdded:Connect(function() task.wait(0.5); refreshPlayerList() end)
-Players.PlayerRemoving:Connect(function(target)
-    if spectatingPlayer==target then stopSpectating() end
-    if ridingPlayer==target then stopRide() end
-    task.wait(); refreshPlayerList()
+refreshPlayerList()
+Players.PlayerAdded:Connect(refreshPlayerList)
+Players.PlayerRemoving:Connect(function(p)
+    if spectatingPlayer == p then stopSpectating() end
+    if ridingPlayer == p then stopRide() end
+    refreshPlayerList()
 end)
 
--- TROLL PAGE
-local trollTitle=Instance.new("TextLabel")
-trollTitle.Size=UDim2.new(1,-10,0,30)
-trollTitle.Position=UDim2.fromOffset(5,0)
-trollTitle.BackgroundTransparency=1
-trollTitle.Text="🎭 Troll Menu"
-trollTitle.TextColor3=TROLL_COLOR
-trollTitle.TextSize=20
-trollTitle.Font=Enum.Font.GothamBold
-trollTitle.TextXAlignment=Enum.TextXAlignment.Left
-trollTitle.ZIndex=115
-trollTitle.Parent=trollPage
+-- ============================================================
+-- 3. TAB TROLL (REVISED: AVATAR DROPDOWN + AUTO-SPECTATE TARGET)
+-- ============================================================
+local trollPage = pages.Troll
+trollPage.CanvasSize = UDim2.new(0, 0, 0, 220)
 
-local orbitTargetLabel=Instance.new("TextLabel")
-orbitTargetLabel.Size=UDim2.new(1,-10,0,20)
-orbitTargetLabel.Position=UDim2.fromOffset(5,32)
-orbitTargetLabel.BackgroundTransparency=1
-orbitTargetLabel.Text="🌀 Target Orbit"
-orbitTargetLabel.TextColor3=SUBTEXT
-orbitTargetLabel.TextSize=13
-orbitTargetLabel.Font=Enum.Font.GothamMedium
-orbitTargetLabel.TextXAlignment=Enum.TextXAlignment.Left
-orbitTargetLabel.ZIndex=115
-orbitTargetLabel.Parent=trollPage
+local selectedOrbitTarget = nil
+local orbitSpeed = 2.0
+local isOrbiting = false
+local orbitConn = nil
+local orbitAngle = 0
 
-local orbitDropdown=Instance.new("TextButton")
-orbitDropdown.Size=UDim2.new(1,-10,0,35)
-orbitDropdown.Position=UDim2.fromOffset(5,54)
-orbitDropdown.BackgroundColor3=BUTTON
-orbitDropdown.BorderSizePixel=0
-orbitDropdown.Text="▼ Select Target"
-orbitDropdown.TextColor3=TEXT
-orbitDropdown.TextSize=13
-orbitDropdown.Font=Enum.Font.GothamBold
-orbitDropdown.AutoButtonColor=false
-orbitDropdown.ZIndex=120
-orbitDropdown.Parent=trollPage
-local orbitCorner=Instance.new("UICorner")
-orbitCorner.CornerRadius=UDim.new(0,8)
-orbitCorner.Parent=orbitDropdown
+local dropBtn = Instance.new("TextButton")
+dropBtn.Size = UDim2.new(1, -6, 0, 40)
+dropBtn.Position = UDim2.fromOffset(0, 0)
+dropBtn.BackgroundColor3 = CARD_BG
+dropBtn.Text = "   ▼ Select Target Orbit"
+dropBtn.TextColor3 = TEXT_MAIN
+dropBtn.TextSize = 11
+dropBtn.Font = Enum.Font.GothamBold
+dropBtn.TextXAlignment = Enum.TextXAlignment.Left
+dropBtn.AutoButtonColor = false
+dropBtn.ZIndex = 150
+dropBtn.Parent = trollPage
 
-local dropdownAvatar=Instance.new("ImageLabel")
-dropdownAvatar.Name="DropdownAvatar"
-dropdownAvatar.Size=UDim2.fromOffset(28,28)
-dropdownAvatar.Position=UDim2.fromOffset(5,3.5)
-dropdownAvatar.BackgroundColor3=BUTTON_HOVER
-dropdownAvatar.BorderSizePixel=0
-dropdownAvatar.Image=""
-dropdownAvatar.ScaleType=Enum.ScaleType.Crop
-dropdownAvatar.ZIndex=121
-dropdownAvatar.Visible=false
-dropdownAvatar.Parent=orbitDropdown
-local dropdownAvatarCorner=Instance.new("UICorner")
-dropdownAvatarCorner.CornerRadius=UDim.new(1,0)
-dropdownAvatarCorner.Parent=dropdownAvatar
+local dropCorner = Instance.new("UICorner")
+dropCorner.CornerRadius = UDim.new(0, 8)
+dropCorner.Parent = dropBtn
 
-local orbitTargetList=Instance.new("Frame")
-orbitTargetList.Name="OrbitTargetList"
-orbitTargetList.Size=UDim2.new(1,-10,0,150)
-orbitTargetList.Position=UDim2.fromOffset(5,91)
-orbitTargetList.BackgroundColor3=BUTTON
-orbitTargetList.BorderSizePixel=0
-orbitTargetList.ZIndex=125
-orbitTargetList.Visible=false
-orbitTargetList.Parent=trollPage
-local orbitListCorner=Instance.new("UICorner")
-orbitListCorner.CornerRadius=UDim.new(0,8)
-orbitListCorner.Parent=orbitTargetList
+local dropListFrame = Instance.new("ScrollingFrame")
+dropListFrame.Size = UDim2.new(1, -6, 0, 140)
+dropListFrame.Position = UDim2.fromOffset(0, 44)
+dropListFrame.BackgroundColor3 = CARD_BG
+dropListFrame.BorderSizePixel = 0
+dropListFrame.Visible = false
+dropListFrame.ZIndex = 300
+dropListFrame.Parent = trollPage
 
-local orbitTargetScrolling=Instance.new("ScrollingFrame")
-orbitTargetScrolling.Size=UDim2.new(1,0,1,0)
-orbitTargetScrolling.BackgroundTransparency=1
-orbitTargetScrolling.BorderSizePixel=0
-orbitTargetScrolling.ScrollBarThickness=3
-orbitTargetScrolling.CanvasSize=UDim2.new(0,0,0,0)
-orbitTargetScrolling.Active=true
-orbitTargetScrolling.Parent=orbitTargetList
-local orbitTargetLayout=Instance.new("UIListLayout")
-orbitTargetLayout.Padding=UDim.new(0,2)
-orbitTargetLayout.Parent=orbitTargetScrolling
+local dropListCorner = Instance.new("UICorner")
+dropListCorner.CornerRadius = UDim.new(0, 8)
+dropListCorner.Parent = dropListFrame
 
-local targetAvatars={}
-local selectedDisplay=""
-local selectedUser=""
+local function updateOrbitDropdown()
+    for _, c in ipairs(dropListFrame:GetChildren()) do
+        if c:IsA("TextButton") then c:Destroy() end
+    end
 
-local function getOrbitTargets()
-    local list={}
-    for _,target in ipairs(Players:GetPlayers()) do if target~=Player then table.insert(list,target) end end
-    return list
+    local plist = Players:GetPlayers()
+    local count = 0
+    for _, targetP in ipairs(plist) do
+        if targetP ~= Player then
+            count = count + 1
+            local itemBtn = Instance.new("TextButton")
+            itemBtn.Size = UDim2.new(1, 0, 0, 42)
+            itemBtn.Position = UDim2.fromOffset(0, (count - 1) * 44)
+            itemBtn.BackgroundColor3 = BUTTON_BG
+            itemBtn.BorderSizePixel = 0
+            itemBtn.Text = ""
+            itemBtn.ZIndex = 301
+            itemBtn.Parent = dropListFrame
+
+            local ava = Instance.new("ImageLabel")
+            ava.Size = UDim2.fromOffset(30, 30)
+            ava.Position = UDim2.fromOffset(6, 6)
+            ava.BackgroundColor3 = CARD_BG
+            ava.BorderSizePixel = 0
+            ava.Image = "rbxassetid://6031082533"
+            ava.ZIndex = 302
+            ava.Parent = itemBtn
+
+            local avaCorner = Instance.new("UICorner")
+            avaCorner.CornerRadius = UDim.new(1, 0)
+            avaCorner.Parent = ava
+
+            task.spawn(function()
+                local content, isReady = Players:GetUserThumbnailAsync(targetP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                if isReady and ava and ava.Parent then ava.Image = content end
+            end)
+
+            local dName = Instance.new("TextLabel")
+            dName.Size = UDim2.new(1, -45, 0, 16)
+            dName.Position = UDim2.fromOffset(42, 5)
+            dName.BackgroundTransparency = 1
+            dName.Text = targetP.DisplayName
+            dName.TextColor3 = TEXT_MAIN
+            dName.TextSize = 10
+            dName.Font = Enum.Font.GothamBold
+            dName.TextXAlignment = Enum.TextXAlignment.Left
+            dName.TextTruncate = Enum.TextTruncate.AtEnd
+            dName.ZIndex = 302
+            dName.Parent = itemBtn
+
+            local uName = Instance.new("TextLabel")
+            uName.Size = UDim2.new(1, -45, 0, 14)
+            uName.Position = UDim2.fromOffset(42, 21)
+            uName.BackgroundTransparency = 1
+            uName.Text = "@" .. targetP.Name
+            uName.TextColor3 = TEXT_SUB
+            uName.TextSize = 8
+            uName.Font = Enum.Font.Gotham
+            uName.TextXAlignment = Enum.TextXAlignment.Left
+            uName.TextTruncate = Enum.TextTruncate.AtEnd
+            uName.ZIndex = 302
+            uName.Parent = itemBtn
+
+            itemBtn.MouseButton1Click:Connect(function()
+                selectedOrbitTarget = targetP
+                dropBtn.Text = "   ▼ Target: " .. targetP.DisplayName
+                dropListFrame.Visible = false
+            end)
+        end
+    end
+    dropListFrame.CanvasSize = UDim2.new(0, 0, 0, count * 44)
 end
 
-local function updateOrbitTargetList()
-    for _,child in ipairs(orbitTargetScrolling:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
-    targetAvatars={}
-    local targets=getOrbitTargets()
-    local height=0
-    for _,target in ipairs(targets) do
-        local btn=Instance.new("TextButton")
-        btn.Name=target.Name
-        btn.Size=UDim2.new(1,-4,0,48)
-        btn.BackgroundColor3=BUTTON_HOVER
-        btn.BorderSizePixel=0
-        btn.Text=""
-        btn.TextColor3=TEXT
-        btn.TextSize=12
-        btn.Font=Enum.Font.Gotham
-        btn.AutoButtonColor=false
-        btn.ZIndex=130
-        btn.Parent=orbitTargetScrolling
-        local corner=Instance.new("UICorner")
-        corner.CornerRadius=UDim.new(0,6)
-        corner.Parent=btn
-
-        local avatar=Instance.new("ImageLabel")
-        avatar.Name="Avatar"
-        avatar.Size=UDim2.fromOffset(32,32)
-        avatar.Position=UDim2.fromOffset(5,8)
-        avatar.BackgroundColor3=BUTTON_HOVER
-        avatar.BorderSizePixel=0
-        avatar.Image=""
-        avatar.ScaleType=Enum.ScaleType.Crop
-        avatar.ZIndex=131
-        avatar.Parent=btn
-        local avatarCorner=Instance.new("UICorner")
-        avatarCorner.CornerRadius=UDim.new(1,0)
-        avatarCorner.Parent=avatar
-
-        local displayLabel=Instance.new("TextLabel")
-        displayLabel.Size=UDim2.new(1,-45,0,24)
-        displayLabel.Position=UDim2.fromOffset(42,2)
-        displayLabel.BackgroundTransparency=1
-        displayLabel.Text=target.DisplayName
-        displayLabel.TextColor3=TEXT
-        displayLabel.TextSize=13
-        displayLabel.Font=Enum.Font.GothamBold
-        displayLabel.TextXAlignment=Enum.TextXAlignment.Left
-        displayLabel.ZIndex=132
-        displayLabel.Parent=btn
-
-        local userLabel=Instance.new("TextLabel")
-        userLabel.Size=UDim2.new(1,-45,0,20)
-        userLabel.Position=UDim2.fromOffset(42,24)
-        userLabel.BackgroundTransparency=1
-        userLabel.Text="@"..target.Name
-        userLabel.TextColor3=SUBTEXT
-        userLabel.TextSize=11
-        userLabel.Font=Enum.Font.Gotham
-        userLabel.TextXAlignment=Enum.TextXAlignment.Left
-        userLabel.ZIndex=132
-        userLabel.Parent=btn
-
-        task.spawn(function()
-            local success,image=pcall(function() return Players:GetUserThumbnailAsync(target.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size100x100) end)
-            if success and image and avatar.Parent then
-                avatar.Image=image
-                targetAvatars[target.Name]=image
-            end
-        end)
-
-        btn.MouseEnter:Connect(function() btn.BackgroundColor3=BUTTON end)
-        btn.MouseLeave:Connect(function() btn.BackgroundColor3=BUTTON_HOVER end)
-        btn.MouseButton1Click:Connect(function()
-            orbitTarget=target
-            selectedDisplay=target.DisplayName
-            selectedUser=target.Name
-            orbitDropdown.Text="   "..selectedDisplay.." @"..selectedUser.." ▼"
-            if targetAvatars[target.Name] then
-                dropdownAvatar.Image=targetAvatars[target.Name]
-                dropdownAvatar.Visible=true
-            else
-                dropdownAvatar.Visible=false
-            end
-            orbitTargetList.Visible=false
-        end)
-        height+=50
-    end
-    orbitTargetScrolling.CanvasSize=UDim2.new(0,0,0,height)
-end
-
-orbitDropdown.MouseButton1Click:Connect(function()
-    orbitTargetList.Visible=not orbitTargetList.Visible
-    if orbitTargetList.Visible then
-        updateOrbitTargetList()
-        orbitTargetList.Size=UDim2.new(1,-10,0,math.min(150,#getOrbitTargets()*50+10))
-    end
+dropBtn.MouseButton1Click:Connect(function()
+    updateOrbitDropdown()
+    dropListFrame.Visible = not dropListFrame.Visible
 end)
 
-local function createSlider(parent,labelText,y,minValue,maxValue,initialValue,callback)
-    local label=Instance.new("TextLabel")
-    label.Size=UDim2.new(1,-10,0,22)
-    label.Position=UDim2.fromOffset(5,y)
-    label.BackgroundTransparency=1
-    label.TextColor3=TEXT
-    label.TextSize=14
-    label.Font=Enum.Font.GothamMedium
-    label.TextXAlignment=Enum.TextXAlignment.Left
-    label.ZIndex=115
-    label.Parent=parent
-    local sliderFrame=Instance.new("Frame")
-    sliderFrame.Size=UDim2.new(1,-10,0,35)
-    sliderFrame.Position=UDim2.fromOffset(5,y+24)
-    sliderFrame.BackgroundColor3=BUTTON
-    sliderFrame.BorderSizePixel=0
-    sliderFrame.ZIndex=115
-    sliderFrame.Active=true
-    sliderFrame.Parent=parent
-    local corner=Instance.new("UICorner")
-    corner.CornerRadius=UDim.new(0,10)
-    corner.Parent=sliderFrame
-    local sliderBar=Instance.new("Frame")
-    sliderBar.Size=UDim2.new(1,-30,0,5)
-    sliderBar.Position=UDim2.new(0,15,0.5,-2)
-    sliderBar.BackgroundColor3=Color3.fromRGB(90,90,100)
-    sliderBar.BorderSizePixel=0
-    sliderBar.ZIndex=116
-    sliderBar.Parent=sliderFrame
-    local barCorner=Instance.new("UICorner")
-    barCorner.CornerRadius=UDim.new(1,0)
-    barCorner.Parent=sliderBar
-    local fill=Instance.new("Frame")
-    fill.Size=UDim2.new(0,0,1,0)
-    fill.Position=UDim2.fromScale(0,0)
-    fill.BackgroundColor3=ON_COLOR
-    fill.BorderSizePixel=0
-    fill.ZIndex=117
-    fill.Parent=sliderBar
-    local fillCorner=Instance.new("UICorner")
-    fillCorner.CornerRadius=UDim.new(1,0)
-    fillCorner.Parent=fill
-    local sliderKnob=Instance.new("TextButton")
-    sliderKnob.Size=UDim2.fromOffset(18,18)
-    sliderKnob.AnchorPoint=Vector2.new(0.5,0.5)
-    sliderKnob.BackgroundColor3=Color3.fromRGB(255,255,255)
-    sliderKnob.BorderSizePixel=0
-    sliderKnob.Text=""
-    sliderKnob.AutoButtonColor=false
-    sliderKnob.ZIndex=119
-    sliderKnob.Active=true
-    sliderKnob.Parent=sliderFrame
-    local knobCorner=Instance.new("UICorner")
-    knobCorner.CornerRadius=UDim.new(1,0)
-    knobCorner.Parent=sliderKnob
-    local value=initialValue
-    local draggingSlider=false
-    local function updateLabel()
-        label.Text=labelText.." • "..string.format("%.1f",value)
-    end
-    local function updateVisual()
-        local width=sliderBar.AbsoluteSize.X
-        if width<=0 then return end
-        local range=maxValue-minValue
-        if range<=0 then return end
-        local percent=math.clamp((value-minValue)/range,0,1)
-        local x=width*percent
-        sliderKnob.Position=UDim2.new(0,15+x,0.5,0)
-        fill.Size=UDim2.new(0,x,1,0)
-    end
-    local function setValueFromX(x)
-        local width=sliderBar.AbsoluteSize.X
-        if width<=0 then return end
-        x=math.clamp(x,0,width)
-        local percent=x/width
-        value=minValue+(maxValue-minValue)*percent
-        value=math.clamp(value,minValue,maxValue)
-        updateVisual()
-        updateLabel()
-        callback(value)
-    end
-    local function getInputX(input)
-        return input.Position.X-sliderBar.AbsolutePosition.X
-    end
-    local function beginDrag(input)
-        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-            draggingSlider=true
-            setValueFromX(getInputX(input))
-        end
-    end
-    sliderFrame.InputBegan:Connect(beginDrag)
-    sliderKnob.InputBegan:Connect(beginDrag)
-    UserInputService.InputChanged:Connect(function(input)
-        if not draggingSlider then return end
-        if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
-            setValueFromX(getInputX(input))
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-            draggingSlider=false
-        end
-    end)
-    updateLabel()
-    task.wait(0.1)
-    updateVisual()
-    return {
-        GetValue=function() return value end,
-        SetValue=function(newValue)
-            value=math.clamp(newValue,minValue,maxValue)
-            updateVisual()
-            updateLabel()
-            callback(value)
-        end
-    }
-end
+addSliderRow(trollPage, "Orbit Speed", 48, 1, 10, 2, function(val) orbitSpeed = val end)
 
-local orbitSpeedSlider=createSlider(trollPage,"Orbit Speed",170,0.5,15,2,function(value) orbitSpeed=value end)
+local orbitToggleBtn = Instance.new("TextButton")
+orbitToggleBtn.Size = UDim2.new(1, -6, 0, 42)
+orbitToggleBtn.Position = UDim2.fromOffset(0, 104)
+orbitToggleBtn.BackgroundColor3 = ACCENT_RED
+orbitToggleBtn.Text = "🌀 Start Orbit"
+orbitToggleBtn.TextColor3 = TEXT_MAIN
+orbitToggleBtn.TextSize = 12
+orbitToggleBtn.Font = Enum.Font.GothamBold
+orbitToggleBtn.AutoButtonColor = false
+orbitToggleBtn.ZIndex = 116
+orbitToggleBtn.Parent = trollPage
 
-local orbitStartButton=createButton(trollPage,"🌀 Start Orbit",230)
-orbitStartButton.BackgroundColor3=TROLL_COLOR
-local orbitStopButton=createButton(trollPage,"🛑 Stop Orbit",280)
-orbitStopButton.BackgroundColor3=BUTTON
-
-local orbitStatus=Instance.new("TextLabel")
-orbitStatus.Size=UDim2.new(1,-10,0,20)
-orbitStatus.Position=UDim2.fromOffset(5,330)
-orbitStatus.BackgroundTransparency=1
-orbitStatus.Text="Status: Idle"
-orbitStatus.TextColor3=SUBTEXT
-orbitStatus.TextSize=12
-orbitStatus.Font=Enum.Font.Gotham
-orbitStatus.TextXAlignment=Enum.TextXAlignment.Left
-orbitStatus.ZIndex=115
-orbitStatus.Parent=trollPage
-
-local function startOrbit()
-    if not orbitTarget then
-        orbitStatus.Text="Status: No target selected!"
-        orbitStatus.TextColor3=Color3.fromRGB(255,100,100)
-        return
-    end
-    if orbitActive then stopOrbit() end
-
-    local myHumanoid=getHumanoid()
-    local myRoot=getRoot()
-    if myHumanoid then
-        myHumanoid.PlatformStand=false
-        myHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-    end
-    if myRoot then
-        myRoot:SetNetworkOwnershipAuto()
-    end
-
-    local targetChar=orbitTarget.Character
-    local humanoid=getHumanoid(targetChar)
-    if humanoid then
-        Camera.CameraType=Enum.CameraType.Custom
-        Camera.CameraSubject=humanoid
-    end
-
-    orbitActive=true
-    orbitAngle=0
-    orbitRadius=math.random(5,15)
-    orbitRandomY=math.random(3,8)
-    orbitStatus.Text="Status: Orbiting "..orbitTarget.DisplayName.." (Radius: "..orbitRadius..")"
-    orbitStatus.TextColor3=ON_COLOR
-    orbitStartButton.BackgroundColor3=ON_COLOR
-    if orbitConnection then orbitConnection:Disconnect() end
-
-    orbitConnection=RunService.Heartbeat:Connect(function()
-        if not orbitActive or not orbitTarget then
-            stopOrbit()
-            return
-        end
-
-        local targetChar=orbitTarget.Character
-        local targetRoot=getRoot(targetChar)
-        local myChar=Player.Character
-        local myRoot=getRoot(myChar)
-
-        if not targetRoot or not myRoot then return end
-
-        orbitAngle=orbitAngle+orbitSpeed*0.016
-        local x=targetRoot.Position.X+orbitRadius*math.cos(orbitAngle)
-        local z=targetRoot.Position.Z+orbitRadius*math.sin(orbitAngle)
-        local y=targetRoot.Position.Y+3+math.sin(orbitAngle*1.5)*orbitRandomY
-
-        myRoot.CFrame=CFrame.new(Vector3.new(x,y,z))*CFrame.Angles(0,0,math.sin(orbitAngle*2)*0.3)
-        myRoot.AssemblyLinearVelocity=Vector3.zero
-        myRoot.AssemblyAngularVelocity=Vector3.zero
-
-        local myHumanoid2=getHumanoid()
-        if myHumanoid2 then
-            myHumanoid2.PlatformStand=false
-        end
-
-        local currentTargetChar=orbitTarget.Character
-        local currentHumanoid=getHumanoid(currentTargetChar)
-        if currentHumanoid and Camera.CameraSubject~=currentHumanoid then
-            Camera.CameraSubject=currentHumanoid
-        end
-    end)
-end
+local orbitCorner = Instance.new("UICorner")
+orbitCorner.CornerRadius = UDim.new(0, 8)
+orbitCorner.Parent = orbitToggleBtn
 
 local function stopOrbit()
-    orbitActive=false
-    if orbitConnection then orbitConnection:Disconnect() orbitConnection=nil end
-    orbitStatus.Text="Status: Idle"
-    orbitStatus.TextColor3=SUBTEXT
-    orbitStartButton.BackgroundColor3=TROLL_COLOR
-
-    local myHumanoid=getHumanoid()
-    if myHumanoid then
-        myHumanoid.PlatformStand=false
-        Camera.CameraType=Enum.CameraType.Custom
-        Camera.CameraSubject=myHumanoid
-    end
-
-    local myRoot=getRoot()
-    if myRoot then
-        myRoot:SetNetworkOwnershipAuto()
+    isOrbiting = false
+    if orbitConn then orbitConn:Disconnect() orbitConn = nil end
+    orbitToggleBtn.Text = "🌀 Start Orbit"
+    orbitToggleBtn.BackgroundColor3 = ACCENT_RED
+    
+    -- KEMBALIKAN POV KAMERA KE KARAKTER SENDIRI
+    Camera.CameraType = Enum.CameraType.Custom
+    local hum = getHumanoid()
+    if hum then 
+        hum.PlatformStand = false
+        Camera.CameraSubject = hum 
     end
 end
 
-orbitStartButton.MouseButton1Click:Connect(startOrbit)
-orbitStopButton.MouseButton1Click:Connect(stopOrbit)
-
--- SERVER PAGE
-local loadWaypointBtn = createButton(serverPage, "📍 Load Waypoint Module", 5)
-loadWaypointBtn.BackgroundColor3 = ON_COLOR
-
-local bpToggleActive = false
-local toggleBPBtn = createButton(serverPage, "📍 Toggle STRN BP Menu", 55)
-toggleBPBtn.BackgroundColor3 = BUTTON
-
-loadWaypointBtn.MouseButton1Click:Connect(function()
-    task.spawn(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/WSTRN681/Waypoint-connection/refs/heads/main/Waypoint%20connection"))()
-    end)
-    bpToggleActive = true
-    loadWaypointBtn:Destroy()
-    toggleBPBtn.BackgroundColor3 = CATEGORY_SELECTED
-end)
-
-toggleBPBtn.MouseButton1Click:Connect(function()
-    if bpToggleActive then
-        if getgenv().ToggleSTRNBypass then
-            getgenv().ToggleSTRNBypass()
+orbitToggleBtn.MouseButton1Click:Connect(function()
+    if isOrbiting then
+        stopOrbit()
+        showToast("Orbit Troll", "Orbit & Spectate Dihentikan", ACCENT_BLUE)
+    else
+        if not selectedOrbitTarget or not selectedOrbitTarget.Character then
+            showToast("Orbit Troll", "Pilih target player dulu!", ACCENT_RED)
+            return
         end
-    end
-end)
+        isOrbiting = true
+        orbitToggleBtn.Text = "🛑 Stop Orbit"
+        orbitToggleBtn.BackgroundColor3 = ACCENT_BLUE
+        showToast("Orbit Troll", "Orbiting & Spectating " .. selectedOrbitTarget.DisplayName, ACCENT_GREEN)
 
-local serverTitle=Instance.new("TextLabel")
-serverTitle.Size=UDim2.new(1,-10,0,30)
-serverTitle.Position=UDim2.fromOffset(5,105)
-serverTitle.BackgroundTransparency=1
-serverTitle.Text="🖥️ Server Information"
-serverTitle.TextColor3=TEXT
-serverTitle.TextSize=18
-serverTitle.Font=Enum.Font.GothamBold
-serverTitle.TextXAlignment=Enum.TextXAlignment.Left
-serverTitle.ZIndex=115
-serverTitle.Parent=serverPage
+        local hum = getHumanoid()
+        if hum then hum.PlatformStand = true end
 
-local function createServerInfo(text,y)
-    local label=Instance.new("TextLabel")
-    label.Size=UDim2.new(1,-10,0,35)
-    label.Position=UDim2.fromOffset(5,y)
-    label.BackgroundColor3=BUTTON
-    label.BorderSizePixel=0
-    label.Text=text
-    label.TextColor3=TEXT
-    label.TextSize=13
-    label.Font=Enum.Font.GothamMedium
-    label.TextXAlignment=Enum.TextXAlignment.Left
-    label.ZIndex=115
-    label.Parent=serverPage
-    local padding=Instance.new("UIPadding")
-    padding.PaddingLeft=UDim.new(0,12)
-    padding.Parent=label
-    local corner=Instance.new("UICorner")
-    corner.CornerRadius=UDim.new(0,9)
-    corner.Parent=label
-    return label
-end
-local gameNameLabel=createServerInfo("Game: Loading...",145)
-local playerCountLabel=createServerInfo("Players: Loading...",187)
-local fpsLabel=createServerInfo("FPS: Loading...",229)
-local pingLabel=createServerInfo("Ping: Loading...",271)
-local placeIdLabel=createServerInfo("Place ID: "..tostring(game.PlaceId),313)
+        orbitAngle = 0
+        orbitConn = RunService.Heartbeat:Connect(function(dt)
+            if not isOrbiting or not selectedOrbitTarget or not selectedOrbitTarget.Character then
+                stopOrbit()
+                return
+            end
 
-task.spawn(function()
-    local success,info=pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
-    if success and info then gameNameLabel.Text="Game: "..tostring(info.Name) else gameNameLabel.Text="Game: Unknown" end
-end)
+            -- AUTO SPECTATE: KUNCI POV KAMERA KE TARGET YANG SEDANG DI-TROLL
+            local targetHum = getHumanoid(selectedOrbitTarget.Character)
+            if targetHum and Camera.CameraSubject ~= targetHum then
+                Camera.CameraSubject = targetHum
+            end
 
-local fps=0
-local fpsFrames=0
-local fpsTime=0
-fpsConnection=RunService.RenderStepped:Connect(function(deltaTime)
-    fpsFrames+=1
-    fpsTime+=deltaTime
-    if fpsTime>=1 then fps=math.floor(fpsFrames/fpsTime); fpsFrames=0; fpsTime=0; fpsLabel.Text="FPS: "..tostring(fps) end
-end)
-
-task.spawn(function()
-    while gui.Parent do
-        playerCountLabel.Text="Players: "..tostring(#Players:GetPlayers())
-        local ping=nil
-        pcall(function()
-            local network=Stats.Network
-            local serverStats=network.ServerStatsItem
-            local dataPing=serverStats["Data Ping"]
-            if dataPing then ping=dataPing:GetValue() end
+            local myRoot = getRoot()
+            local tRoot = getRoot(selectedOrbitTarget.Character)
+            if myRoot and tRoot then
+                orbitAngle = orbitAngle + (dt * orbitSpeed * 2.5)
+                local radius = 8
+                local x = tRoot.Position.X + math.cos(orbitAngle) * radius
+                local z = tRoot.Position.Z + math.sin(orbitAngle) * radius
+                local y = tRoot.Position.Y + 2
+                myRoot.CFrame = CFrame.new(Vector3.new(x, y, z), tRoot.Position)
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+            else stopOrbit() end
         end)
-        if ping then pingLabel.Text="Ping: "..math.floor(ping).." ms" else pingLabel.Text="Ping: N/A" end
-        task.wait(1)
     end
 end)
 
--- PAGE SWITCHER CONTROL
-local function showPage(page,tab)
-    hackPage.Visible=false
-    playerPage.Visible=false
-    trollPage.Visible=false
-    serverPage.Visible=false
-    hackTab.BackgroundColor3=BUTTON
-    playerTab.BackgroundColor3=BUTTON
-    trollTab.BackgroundColor3=BUTTON
-    serverTab.BackgroundColor3=BUTTON
-    page.CanvasPosition=Vector2.new(0,0)
-    page.Visible=true
-    tab.BackgroundColor3=CATEGORY_SELECTED
-end
+-- ============================================================
+-- 4. TAB SERVER
+-- ============================================================
+local serverPage = pages.Server
+serverPage.CanvasSize = UDim2.new(0, 0, 0, 220)
 
-hackTab.MouseButton1Click:Connect(function() showPage(hackPage,hackTab) end)
-playerTab.MouseButton1Click:Connect(function() showPage(playerPage,playerTab); refreshPlayerList() end)
-trollTab.MouseButton1Click:Connect(function() showPage(trollPage,trollTab); updateOrbitTargetList() end)
-serverTab.MouseButton1Click:Connect(function() showPage(serverPage,serverTab) end)
+local loadWpBtn = Instance.new("TextButton")
+loadWpBtn.Size = UDim2.new(1, -6, 0, 40)
+loadWpBtn.Position = UDim2.fromOffset(0, 0)
+loadWpBtn.BackgroundColor3 = ACCENT_BLUE
+loadWpBtn.Text = "📍 Load Waypoint Module"
+loadWpBtn.TextColor3 = TEXT_MAIN
+loadWpBtn.TextSize = 12
+loadWpBtn.Font = Enum.Font.GothamBold
+loadWpBtn.AutoButtonColor = false
+loadWpBtn.ZIndex = 116
+loadWpBtn.Parent = serverPage
 
--- DRAGGING LOGIC FOR OPEN BUTTON
-local dragging=false
-local dragStart=nil
-local startPosition=nil
-local moved=false
-openButton.InputBegan:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-        dragging=true
-        moved=false
-        dragStart=input.Position
-        startPosition=openButton.Position
-        input.Changed:Connect(function() if input.UserInputState==Enum.UserInputState.End then dragging=false end end)
+local wpCorner = Instance.new("UICorner")
+wpCorner.CornerRadius = UDim.new(0, 8)
+wpCorner.Parent = loadWpBtn
+
+local isBpLoaded = false
+loadWpBtn.MouseButton1Click:Connect(function()
+    closeMenu()
+    if not isBpLoaded then
+        isBpLoaded = true
+        showToast("Waypoint Module", "Memuat STRN Bypass...", ACCENT_BLUE)
+        loadWpBtn.Text = "📍 Toggle STRN BP Menu"
+        loadWpBtn.BackgroundColor3 = CARD_BG
+        task.spawn(function()
+            pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/WSTRN681/Waypoint-connection/refs/heads/main/Waypoint%20connection"))()
+            end)
+        end)
+    else
+        if getgenv().ToggleSTRNBypass then getgenv().ToggleSTRNBypass() end
     end
 end)
-UserInputService.InputChanged:Connect(function(input)
-    if not dragging then return end
-    if input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch then return end
-    local delta=input.Position-dragStart
-    if math.abs(delta.X)>5 or math.abs(delta.Y)>5 then moved=true end
-    openButton.Position=UDim2.new(startPosition.X.Scale,startPosition.X.Offset+delta.X,startPosition.Y.Scale,startPosition.Y.Offset+delta.Y)
+
+local infoBox = Instance.new("Frame")
+infoBox.Size = UDim2.new(1, -6, 0, 110)
+infoBox.Position = UDim2.fromOffset(0, 48)
+infoBox.BackgroundColor3 = CARD_BG
+infoBox.BorderSizePixel = 0
+infoBox.ZIndex = 116
+infoBox.Parent = serverPage
+
+local infoCorner = Instance.new("UICorner")
+infoCorner.CornerRadius = UDim.new(0, 8)
+infoCorner.Parent = infoBox
+
+local infoText = Instance.new("TextLabel")
+infoText.Size = UDim2.new(1, -20, 1, 0)
+infoText.Position = UDim2.fromOffset(10, 0)
+infoText.BackgroundTransparency = 1
+infoText.Text = "Place ID : " .. tostring(game.PlaceId) .. "\nPlayers  : " .. tostring(#Players:GetPlayers()) .. "\nFPS      : -- FPS\nPing     : -- ms"
+infoText.TextColor3 = TEXT_SUB
+infoText.TextSize = 11
+infoText.Font = Enum.Font.GothamMedium
+infoText.TextXAlignment = Enum.TextXAlignment.Left
+infoText.ZIndex = 117
+infoText.Parent = infoBox
+
+task.spawn(function()
+    local fpsFrames, fpsTime = 0, 0
+    RunService.RenderStepped:Connect(function(dt)
+        fpsFrames = fpsFrames + 1
+        fpsTime = fpsTime + dt
+        if fpsTime >= 1 then
+            local fps = math.floor(fpsFrames / fpsTime)
+            fpsFrames, fpsTime = 0, 0
+            local ping = 0
+            pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+            infoText.Text = "Place ID : " .. tostring(game.PlaceId) .. "\nPlayers  : " .. tostring(#Players:GetPlayers()) .. "\nFPS      : " .. tostring(fps) .. " FPS\nPing     : " .. tostring(ping) .. " ms"
+        end
+    end)
 end)
 
-openButton.MouseButton1Click:Connect(function()
-    if moved then moved=false return end
-    openMenuSmooth()
-end)
-
-setSpeed(selectedSpeed)
-openMenuSmooth()
-
-showPage(hackPage,hackTab)
-task.defer(refreshPlayerList)
-
-Player.CharacterAdded:Connect(function(character)
-    local humanoid=character:WaitForChild("Humanoid")
-    humanoid.WalkSpeed=speedLevels[selectedSpeed].speed
-    if wallHack then task.wait(0.5); setWallHack(true) end
-    if isFlying then task.wait(0.5); startFly() end
-    if spectatingPlayer then
-        task.wait(0.5)
-        local targetHumanoid=getHumanoid(spectatingPlayer.Character)
-        if targetHumanoid then Camera.CameraSubject=targetHumanoid end
-    end
-    if ridingPlayer then
-        task.wait(0.5)
-        local targetRoot=getRoot(ridingPlayer.Character)
-        local myRoot=getRoot(character)
-        if targetRoot and myRoot then myRoot.CFrame=targetRoot.CFrame+RIDE_OFFSET end
-    end
-end)
+pages.Hack.Visible = true
 
 gui.Destroying:Connect(function()
     stopFly()
-    if wallHackConnection then wallHackConnection:Disconnect(); wallHackConnection=nil end
-    if jumpConnection then jumpConnection:Disconnect(); jumpConnection=nil end
-    if spectatorConnection then spectatorConnection:Disconnect(); spectatorConnection=nil end
-    if rideConnection then rideConnection:Disconnect(); rideConnection=nil end
-    if fpsConnection then fpsConnection:Disconnect(); fpsConnection=nil end
-    if antiAFKConnection then antiAFKConnection:Disconnect(); antiAFKConnection=nil end
-    if orbitConnection then orbitConnection:Disconnect(); orbitConnection=nil end
-    Camera.CameraType=Enum.CameraType.Custom
-    local humanoid=getHumanoid()
-    if humanoid then Camera.CameraSubject=humanoid end
+    stopOrbit()
+    stopSpectating()
+    stopRide()
+    if wallHackConn then wallHackConn:Disconnect() end
+    if infJumpConn then infJumpConn:Disconnect() end
+    if antiAFKConn then antiAFKConn:Disconnect() end
 end)
