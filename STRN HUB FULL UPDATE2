@@ -1162,7 +1162,7 @@ task.spawn(function()
             local ping = 0
             pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
             infoText.Text = "Place ID : " .. tostring(game.PlaceId) .. "\nPlayers  : " .. tostring(#Players:GetPlayers()) .. "\nFPS      : " .. tostring(fps) .. " FPS\nPing     : " .. tostring(ping) .. " ms"
-        end
+        endq
     end)
 end)
 
@@ -1177,4 +1177,3 @@ gui.Destroying:Connect(function()
     if infJumpConn then infJumpConn:Disconnect() end
     if antiAFKConn then antiAFKConn:Disconnect() end
 end)
-2
